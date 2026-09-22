@@ -4,6 +4,7 @@ export type AppErrorCode =
   | "CONCEPT_NOT_FOUND"
   | "SESSION_NOT_FOUND"
   | "REVIEW_TASK_NOT_FOUND"
+  | "MISTAKE_NOT_FOUND"
   | "NO_ACTIVE_QUESTION"
   | "INTERNAL_ERROR";
 
@@ -45,6 +46,11 @@ const knownErrorMap: Partial<
     code: "REVIEW_TASK_NOT_FOUND",
     statusCode: 404,
     message: "The requested due review task does not exist.",
+  },
+  MISTAKE_NOT_FOUND: {
+    code: "MISTAKE_NOT_FOUND",
+    statusCode: 404,
+    message: "The requested mistake does not exist.",
   },
   NO_ACTIVE_QUESTION: {
     code: "NO_ACTIVE_QUESTION",
