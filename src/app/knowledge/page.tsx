@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, percent } from "@/lib/api";
 
@@ -67,7 +68,12 @@ export default function KnowledgePage() {
                         className="grid gap-3 py-3 sm:grid-cols-[1fr_180px_80px] sm:items-center"
                       >
                         <div>
-                          <div className="font-medium">{concept.name}</div>
+                          <Link
+                            href={`/knowledge/${encodeURIComponent(concept.id)}`}
+                            className="font-medium hover:underline"
+                          >
+                            {concept.name}
+                          </Link>
                           <div className="mt-1 text-xs text-zinc-400">
                             Difficulty {concept.difficulty}
                           </div>
