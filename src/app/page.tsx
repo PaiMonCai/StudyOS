@@ -36,6 +36,7 @@ type Dashboard = {
     endedAt: string | null;
     subject: { name: string } | null;
     topic: { name: string } | null;
+    concept: { id: string; name: string } | null;
   }>;
 };
 
@@ -138,6 +139,52 @@ export default function DashboardPage() {
           >
             开始学习
           </Link>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-zinc-500">Learning history</p>
+            <h2 className="mt-1 text-xl font-semibold">最近 Sessions</h2>
+          </div>
+          <Link
+            href="/sessions"
+            className="text-sm text-zinc-600 hover:text-zinc-950"
+          >
+            全部记录 →
+          </Link>
+        </div>
+
+        <div className="mt-5 divide-y divide-zinc-100">
+          {data?.recentSessions.length ? (
+            data.recentSessions.map((session) => (
+              <Link
+                key={session.id}
+                href={`/study?sessionId=${encodeURIComponent(session.id)}`}
+                className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">
+                    {session.concept?.name ||
+                      session.goal ||
+                      session.topic?.name ||
+                      "Untitled Study Session"}
+                  </div>
+                  <div className="mt-1 text-xs text-zinc-500">
+                    {session.mode}
+                    {session.subject?.name ? ` · ${session.subject.name}` : ""}
+                    {session.topic?.name ? ` · ${session.topic.name}` : ""}
+                  </div>
+                </div>
+                <div className="shrink-0 rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-600">
+                  {session.endedAt ? "Completed" : "Active"}
+                </div>
+              </Link>
+            ))
+          ) : (
+            <Empty>还没有学习 Session。</Empty>
+          )}
         </div>
       </section>
 
