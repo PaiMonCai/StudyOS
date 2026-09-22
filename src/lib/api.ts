@@ -12,9 +12,13 @@ export async function api<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(
-      body?.message ?? body?.error ?? `Request failed: ${response.status}`,
-    );
+    const message =
+      body?.error?.message ??
+      body?.message ??
+      (typeof body?.error === "string" ? body.error : null) ??
+      `Request failed: ${response.status}`;
+
+    throw new Error(message);
   }
 
   return response.json() as Promise<T>;
