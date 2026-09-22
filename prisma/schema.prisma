@@ -139,6 +139,7 @@ model Concept {
   questions         Question[]
   mistakes          Mistake[]
   reviewTasks       ReviewTask[]
+  studySessions     StudySession[]
   learningEvents    LearningEvent[]
 
   @@unique([topicId, slug])
@@ -201,6 +202,8 @@ model StudySession {
   userId            String
   subjectId         String?
   topicId           String?
+  conceptId         String?
+  reviewTaskId      String?
   currentQuestionId String?
   goal              String?         @db.Text
   mode              SessionMode     @default(LEARN)
@@ -212,10 +215,14 @@ model StudySession {
   user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   subject           Subject?        @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   topic             Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  concept           Concept?        @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  reviewTask        ReviewTask?     @relation(fields: [reviewTaskId], references: [id], onDelete: SetNull)
   attempts          Attempt[]
   learningEvents    LearningEvent[]
 
   @@index([userId, startedAt])
+  @@index([userId, conceptId, startedAt])
+  @@index([reviewTaskId])
 }
 
 model Attempt {
@@ -270,6 +277,7 @@ model ReviewTask {
   createdAt    DateTime     @default(now())
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   concept      Concept      @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  studySessions StudySession[]
 
   @@index([userId, status, scheduledAt])
 }
