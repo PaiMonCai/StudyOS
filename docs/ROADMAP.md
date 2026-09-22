@@ -101,7 +101,7 @@ Choose / due concept
 
 - [x] Learning transaction MySQL integration test
 - [x] Review-session binding / idempotency integration test
-- [ ] 至少 30 个核心 service/API integration cases
+- [x] 至少 30 个核心 service/API integration cases
 - [ ] 关键 browser E2E
 
 ### Exit Criteria
