@@ -140,11 +140,32 @@ export async function createStudySession(input: {
   goal?: string;
   mode?: SessionMode;
 }) {
+  let subjectId = input.subjectId;
+  let topicId = input.topicId;
+
+  if (input.conceptId) {
+    const concept = await prisma.concept.findUnique({
+      where: { id: input.conceptId },
+      include: {
+        topic: true,
+      },
+    });
+
+    if (!concept) {
+      throw new Error("CONCEPT_NOT_FOUND");
+    }
+
+    // Concept is the source of truth for its curriculum context.
+    // Never persist mismatched subject/topic IDs supplied by a caller.
+    topicId = concept.topicId;
+    subjectId = concept.topic.subjectId;
+  }
+
   return prisma.studySession.create({
     data: {
       userId: input.userId,
-      subjectId: input.subjectId,
-      topicId: input.topicId,
+      subjectId,
+      topicId,
       conceptId: input.conceptId,
       reviewTaskId: input.reviewTaskId,
       goal: input.goal,
