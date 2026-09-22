@@ -2,17 +2,101 @@
 
 > AI-powered personal learning operating system.
 
-StudyOS is a single-user-first learning agent that turns study conversations into durable learning state: concepts, attempts, mistakes, mastery, and review tasks.
+StudyOS is a single-user-first learning agent that turns real study activity into durable learning state: concepts, attempts, mistakes, mastery estimates, and review tasks.
 
-## V0.1 product goal
+> **Development status:** V0.1 early development. The repository has a runnable foundation, not a production-ready product.
 
-The MVP closes one loop:
+## Start here
+
+If you are continuing development, **read the documentation map first**:
+
+**[docs/README.md](docs/README.md)**
+
+The most important documents are:
+
+| Document | Purpose |
+| --- | --- |
+| [VISION](docs/VISION.md) | Long-term product direction and non-negotiable principles |
+| [PRODUCT](docs/PRODUCT.md) | Current product contract and learning loop |
+| [STATUS](docs/STATUS.md) | What is actually implemented / partial / missing |
+| [ROADMAP](docs/ROADMAP.md) | Development order and phase gates |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | Runtime layers and dependency boundaries |
+| [DATA MODEL](docs/DATA_MODEL.md) | Data semantics and invariants |
+| [AGENT CONTRACT](docs/AGENT_CONTRACT.md) | Agent permissions, tools, evaluation rules |
+| [DEVELOPMENT](docs/DEVELOPMENT.md) | Workflow, Definition of Done, review checklist |
+| [TESTING](docs/TESTING.md) | Unit/integration/E2E + Agent eval strategy |
+| [DECISIONS](docs/DECISIONS.md) | Architecture decision log |
+
+## Product thesis
+
+StudyOS is **not a chat wrapper**.
+
+The durable product loop is:
 
 ```text
-learn -> diagnose -> record evidence -> update mastery -> schedule review -> learn again
+learning evidence
+      ↓
+learner state
+      ↓
+next learning decision
+      ↓
+learning action
+      ↓
+new evidence
 ```
 
-The AI is **not** the source of truth for mastery. The model interprets answers and produces structured evidence; deterministic TypeScript business logic updates mastery and review schedules.
+The core question is:
+
+> Does StudyOS make the next study decision better because it remembers and structures evidence from previous sessions?
+
+## V0.1 loop
+
+```text
+learn
+→ diagnose
+→ persist question
+→ answer
+→ structured evaluation
+→ record evidence
+→ update mastery deterministically
+→ create mistake if needed
+→ schedule review
+→ learn again
+```
+
+The LLM is **not** the source of truth for mastery. It interprets learner answers and creates structured evidence; deterministic TypeScript business logic updates learning state and review schedules.
+
+## Current architecture
+
+```text
+Browser
+  ↓
+Next.js UI
+  ↓
+Hono API
+  ↓
+┌────────────────┐
+│                │
+▼                ▼
+Services     Study Agent
+│                │
+│             Tools
+└───────┬────────┘
+        ▼
+     Services
+        ↓
+     Prisma
+        ↓
+      MySQL
+```
+
+Important boundary:
+
+```text
+Agent → Tool → Service → Prisma
+```
+
+The Agent never receives raw database, SQL, shell, or direct mastery mutation capability.
 
 ## Stack
 
@@ -26,118 +110,91 @@ The AI is **not** the source of truth for mastery. The model interprets answers 
 - MySQL 8
 - Vitest
 
-## Core architecture
-
-```text
-Browser
-  |
-  v
-Next.js UI
-  |
-  v
-Hono API (/api/*)
-  |
-  +------------------+
-  |                  |
-  v                  v
-Study services    Study Agent
-  |                  |
-  |               Function tools
-  |                  |
-  +--------+---------+
-           |
-           v
-      Prisma + MySQL
-```
-
-### Two kinds of memory
-
-**Conversation memory** answers “what are we talking about right now?”
-
-**Learning memory** answers “what does the learner know, where do they fail, and what should be reviewed next?”
-
-StudyOS V0.1 persists learning memory in MySQL. Conversation history is supplied by the client per turn; a persistent agent-session backend is intentionally deferred until the core learning loop is proven.
-
-## Data model
-
-The important chain is:
-
-```text
-Subject -> Topic -> Concept
-                    |
-                    +-> LearningState
-                    +-> Question -> Attempt -> Mistake
-                    +-> LearningEvent
-                    +-> ReviewTask
-
-User -> StudySession
-```
-
-`LearningEvent` is append-only evidence. `LearningState` is the current projection calculated from that evidence.
-
-## Agent boundaries
-
-The Study Agent may:
-
-- inspect a concept and its mastery state;
-- inspect prerequisite mastery;
-- inspect recent mistakes;
-- inspect due reviews;
-- create a diagnostic/practice question;
-- record an evaluated answer;
-- finish a study session.
-
-The Study Agent may **not**:
-
-- execute SQL or shell commands;
-- delete data;
-- set mastery directly;
-- bypass the service layer;
-- invent learner history.
-
 ## Quick start
 
-### 1. Requirements
+Requirements:
 
-- Node.js 22+
-- MySQL 8+
-- an OpenAI API key
-
-### 2. Install
+- Node.js >= 22.18
+- Docker / MySQL 8
+- OpenAI API key
 
 ```bash
+git clone https://github.com/PaiMonCai/StudyOS.git
+cd StudyOS
+
 npm install
-```
-
-### 3. Start MySQL
-
-```bash
-docker compose up -d mysql
-```
-
-### 4. Configure environment
-
-```bash
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY`.
-
-### 5. Create the database
+Set `OPENAI_API_KEY`, then:
 
 ```bash
+docker compose up -d mysql
+
 npm run db:generate
 npm run db:migrate -- --name init
 npm run db:seed
-```
 
-### 6. Start
-
-```bash
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open:
+
+```text
+http://localhost:3000
+```
+
+> Current reproducibility gaps (package lock, committed initial migration, build CI, integration tests) are intentionally tracked in [STATUS.md](docs/STATUS.md) and prioritized in [ROADMAP.md](docs/ROADMAP.md).
+
+## Pages
+
+- `/` — dashboard
+- `/study` — Study Agent session
+- `/knowledge` — knowledge state
+- `/reviews` — due reviews
+
+## Current API
+
+- `GET /api/health`
+- `GET /api/dashboard`
+- `GET /api/knowledge`
+- `GET /api/reviews/today`
+- `POST /api/sessions`
+- `POST /api/agent/message`
+
+## Current Study Agent tools
+
+- `search_concepts`
+- `get_learning_state`
+- `get_prerequisites`
+- `get_recent_mistakes`
+- `get_due_reviews`
+- `create_question`
+- `get_current_question`
+- `record_attempt`
+- `finish_study_session`
+
+See [AGENT_CONTRACT.md](docs/AGENT_CONTRACT.md) before modifying Agent behavior or adding tools.
+
+## Development rule
+
+Before starting a new feature:
+
+```text
+STATUS
+  ↓
+ROADMAP
+  ↓
+relevant product / architecture document
+  ↓
+code
+  ↓
+tests
+  ↓
+documentation update
+```
+
+Do not infer implementation status from the long-term vision.
 
 ## Useful commands
 
@@ -153,79 +210,21 @@ npm run db:seed
 npm run db:studio
 ```
 
-## Pages
+## Scope discipline
 
-- `/` — dashboard: due reviews, weak concepts, recent progress
-- `/study` — study session + agent conversation
-- `/knowledge` — concept tree and mastery
-- `/reviews` — review queue
+Until the core learning loop is reliable, do **not** prioritize:
 
-## API
+- multi-agent orchestration
+- Redis / queues
+- Neo4j
+- vector database
+- PDF / OCR / RAG
+- teacher dashboard
+- payment
+- multi-tenant architecture
 
-- `GET /api/health`
-- `GET /api/dashboard`
-- `GET /api/knowledge`
-- `GET /api/reviews/today`
-- `POST /api/sessions`
-- `POST /api/agent/message`
+Complexity must be justified by real product evidence.
 
-## Mastery V0.1
+## License / status
 
-A single practice result becomes a performance score `S` from correctness, reasoning, and independence.
-
-```text
-S = 0.50 * correctness
-  + 0.30 * reasoning
-  + 0.20 * independence
-```
-
-Mastery then updates with an exponential moving average:
-
-```text
-M_new = (1 - alpha) * M_old + alpha * S
-alpha = 0.25
-```
-
-The first version deliberately uses a transparent deterministic rule. It can later be replaced without changing the agent contract because raw `LearningEvent` evidence is retained.
-
-## Roadmap
-
-### V0.1 — closed learning loop
-- [x] architecture and data model
-- [x] deterministic mastery/review engine
-- [x] Study Agent tool contract
-- [x] dashboard / study / knowledge / reviews UI skeleton
-- [x] seed curriculum
-- [ ] real-world usage and agent eval set
-
-### V0.2 — stronger learner model
-- study goals and planning
-- mistake-pattern analytics
-- review prioritization
-- session summaries
-- improved mastery calibration
-
-### V0.3 — sources
-- notes and textbook sources
-- PDF ingestion
-- concept-to-source mapping
-- retrieval only where it improves teaching
-
-### V0.4 — knowledge graph assistance
-- AI-assisted concept extraction
-- proposed prerequisite links with user confirmation
-
-### V1.0 — specialized tutors
-Only after a single Study Agent becomes difficult to maintain:
-- economics tutor
-- mathematics tutor
-- English tutor
-- manager/planner orchestration
-
-## Design docs
-
-See [docs/PRODUCT.md](docs/PRODUCT.md) for the product contract and phased development plan.
-
-## Status
-
-V0.1 foundation. Single-user development mode uses `DEFAULT_USER_EMAIL`; authentication is intentionally deferred until the learning loop is stable.
+Private early-stage project. V0.1 foundation under active development.
