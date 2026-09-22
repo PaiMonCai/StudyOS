@@ -5,6 +5,7 @@ const items = [
   { href: "/study", label: "Study" },
   { href: "/knowledge", label: "Knowledge" },
   { href: "/reviews", label: "Reviews" },
+  { href: "/mistakes", label: "Mistakes" },
 ];
 
 export function Nav() {
