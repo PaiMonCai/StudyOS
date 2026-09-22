@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
 type Review = {
@@ -20,8 +20,14 @@ type Review = {
   };
 };
 
+type StudySession = {
+  id: string;
+};
+
 export default function ReviewsPage() {
+  const router = useRouter();
   const [items, setItems] = useState<Review[]>([]);
+  const [startingId, setStartingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -30,13 +36,32 @@ export default function ReviewsPage() {
       .catch((err) => setError(err.message));
   }, []);
 
+  async function startReview(reviewTaskId: string) {
+    setStartingId(reviewTaskId);
+    setError("");
+
+    try {
+      const session = await api<StudySession>(
+        `/api/reviews/${reviewTaskId}/start`,
+        {
+          method: "POST",
+        },
+      );
+
+      router.push(`/study?sessionId=${encodeURIComponent(session.id)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start review");
+      setStartingId(null);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <header>
         <p className="text-sm font-medium text-zinc-500">Spaced review</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Reviews</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          V0.1 使用透明的掌握度区间安排复习，后续可替换为更成熟的调度模型。
+          到期任务会创建一个绑定知识点的 Review Session；完成针对该知识点的练习后，系统才会关闭旧任务并安排下一次复习。
         </p>
       </header>
 
@@ -63,12 +88,14 @@ export default function ReviewsPage() {
                 </div>
               </div>
 
-              <Link
-                href="/study"
-                className="inline-flex rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
+              <button
+                type="button"
+                disabled={startingId !== null}
+                onClick={() => startReview(item.id)}
+                className="inline-flex justify-center rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                开始复习
-              </Link>
+                {startingId === item.id ? "创建复习 Session…" : "开始复习"}
+              </button>
             </article>
           ))
         ) : (
