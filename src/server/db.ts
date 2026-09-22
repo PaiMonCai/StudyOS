@@ -1,12 +1,13 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@/generated/prisma/client";
+import { env } from "@/server/env";
 
 const adapter = new PrismaMariaDb({
-  host: process.env.DATABASE_HOST ?? "127.0.0.1",
-  port: Number(process.env.DATABASE_PORT ?? 3306),
-  user: process.env.DATABASE_USER ?? "studyos",
-  password: process.env.DATABASE_PASSWORD ?? "studyos",
-  database: process.env.DATABASE_NAME ?? "studyos",
+  host: env.DATABASE_HOST,
+  port: env.DATABASE_PORT,
+  user: env.DATABASE_USER,
+  password: env.DATABASE_PASSWORD,
+  database: env.DATABASE_NAME,
   connectionLimit: 5,
 });
 
@@ -20,17 +21,17 @@ export const prisma =
     adapter,
   });
 
-if (process.env.NODE_ENV !== "production") {
+if (env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
 export async function getDefaultUser() {
-  const email = process.env.DEFAULT_USER_EMAIL ?? "dev@studyos.local";
-  const name = process.env.DEFAULT_USER_NAME ?? "StudyOS Learner";
-
   return prisma.user.upsert({
-    where: { email },
-    update: { name },
-    create: { email, name },
+    where: { email: env.DEFAULT_USER_EMAIL },
+    update: { name: env.DEFAULT_USER_NAME },
+    create: {
+      email: env.DEFAULT_USER_EMAIL,
+      name: env.DEFAULT_USER_NAME,
+    },
   });
 }
