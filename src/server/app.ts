@@ -23,6 +23,7 @@ import {
   getDueReviews,
   getKnowledgeTree,
   getStudySession,
+  listReviewTasks,
   startReviewSession,
 } from "@/server/services/study-service";
 
@@ -149,6 +150,33 @@ app.post("/mistakes/:id/reopen", async (c) => {
 app.get("/reviews/today", async (c) => {
   const user = await getDefaultUser();
   return c.json(await getDueReviews(user.id, 50));
+});
+
+const reviewScopeSchema = z.enum(["DUE", "UPCOMING", "COMPLETED", "ALL"]).default("DUE");
+
+app.get("/reviews", async (c) => {
+  const parsed = reviewScopeSchema.safeParse(c.req.query("scope") ?? "DUE");
+
+  if (!parsed.success) {
+    return c.json(
+      errorBody({
+        code: "INVALID_REQUEST",
+        message: "Invalid review scope.",
+        requestId: c.get("requestId"),
+        details: parsed.error.flatten(),
+      }),
+      400,
+    );
+  }
+
+  const user = await getDefaultUser();
+  return c.json(
+    await listReviewTasks({
+      userId: user.id,
+      scope: parsed.data,
+      limit: 100,
+    }),
+  );
 });
 
 app.post("/reviews/:id/start", async (c) => {
