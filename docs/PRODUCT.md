@@ -1,5 +1,10 @@
 # StudyOS V0.1 — Product & Development Contract
 
+> **Document role:** this file defines the current product contract and V0.1 acceptance criteria.  
+> For actual implementation status see [STATUS.md](./STATUS.md).  
+> For future priority see [ROADMAP.md](./ROADMAP.md).  
+> For system boundaries see [ARCHITECTURE.md](./ARCHITECTURE.md) and [AGENT_CONTRACT.md](./AGENT_CONTRACT.md).
+
 ## 1. Product thesis
 
 StudyOS is not a chat wrapper. Its durable value is a learner model that becomes more useful after every meaningful study event.
@@ -203,15 +208,19 @@ The MVP is complete when all of these are true:
 15. Completing review practice closes the old due review.
 16. The next session can use the updated learning state.
 
+**Important:** items being implemented in code do not automatically mean the overall V0.1 product is accepted. End-to-end reliability, tests, and actual usage are tracked in [STATUS.md](./STATUS.md).
+
 ## 10. Development slices
 
 ### P0 — Foundation
+
 - Next.js / Hono / TypeScript
 - Prisma / MySQL
 - local Docker database
 - environment template
 
 ### P1 — Knowledge
+
 - Subject
 - Topic
 - Concept
@@ -219,6 +228,7 @@ The MVP is complete when all of these are true:
 - Knowledge page
 
 ### P2 — Learning engine
+
 - Question
 - Attempt
 - LearningEvent
@@ -226,6 +236,7 @@ The MVP is complete when all of these are true:
 - pure deterministic tests
 
 ### P3 — Agent
+
 - concept search
 - learning-state reads
 - prerequisite reads
@@ -233,27 +244,32 @@ The MVP is complete when all of these are true:
 - answer recording
 
 ### P4 — Mistakes
+
 - stable taxonomy
 - diagnosis text
 - unresolved mistake retrieval
 
 ### P5 — Reviews
+
 - deterministic review scheduling
 - due queue
 - close previous due reviews after practice
 
 ### P6 — Sessions
+
 - active question ownership
 - summary
 - later: persistent agent session backend
 
 ### P7 — Dashboard
+
 - weak concepts
 - due reviews
 - mastery average
 - recent sessions
 
 ### P8 — Evals
+
 Build a fixed eval set of at least 50 scenarios, including:
 
 - low mastery -> basic teaching;
@@ -264,45 +280,7 @@ Build a fixed eval set of at least 50 scenarios, including:
 - answer after hints -> lower independence;
 - no active question -> do not write an attempt.
 
-## 11. V0.2
-
-- review completion UI;
-- learning goals;
-- mistake-pattern aggregation;
-- session summaries;
-- better review priority;
-- mastery calibration from real usage;
-- concept detail page.
-
-## 12. V0.3
-
-- notes and textbook sources;
-- source snippets linked to concepts;
-- PDF ingestion;
-- retrieval where it improves grounded explanations.
-
-Do not make retrieval a prerequisite for ordinary learning-state operations.
-
-## 13. V0.4
-
-AI-assisted concept extraction and prerequisite suggestions.
-
-All proposed graph mutations should be reviewable before persistence.
-
-## 14. V1.0
-
-Only after data shows a need:
-
-```text
-Study Manager
-  +-> Economics Tutor
-  +-> Math Tutor
-  +-> English Tutor
-```
-
-Use handoffs only when a specialist should take over the conversation. Use an agent-as-tool pattern when the manager should retain control.
-
-## 15. Success metric
+## 11. Success metric
 
 The first meaningful product metric is not chat count.
 
@@ -318,3 +296,13 @@ Secondary metrics:
 - percentage of sessions where the agent used relevant prior state;
 - false-positive mistake diagnoses;
 - learner correction of agent evaluation.
+
+## 12. Where future work lives
+
+This document intentionally no longer duplicates a long version roadmap.
+
+Future sequencing and gates are maintained in:
+
+**[ROADMAP.md](./ROADMAP.md)**
+
+This avoids mixing “product contract” with “future wishlist”.
