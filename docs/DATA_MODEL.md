@@ -28,6 +28,8 @@ Subject
         │   └── Attempt
         │       └── Mistake
         ├── ReviewTask
+        │   └── StudySession
+        ├── StudySession
         └── LearningEvent
 ```
 
@@ -237,9 +239,49 @@ StudySession 代表一次有明确开始 / 结束边界的学习过程。
 
 - goal；
 - mode；
+- bound concept；
+- bound review task；
 - active question；
 - summary；
 - learning events grouping。
+
+### conceptId / reviewTaskId
+
+V0.1 允许 StudySession 显式绑定：
+
+```text
+StudySession
+├── conceptId?
+└── reviewTaskId?
+```
+
+用途：
+
+> 让 Review → Study 的上下文成为结构化数据，而不是把“正在复习哪个知识点”塞进 goal 或聊天文本。
+
+当前 Review flow：
+
+```text
+PENDING + due ReviewTask
+        ↓ startReviewSession()
+REVIEW StudySession
+        ├── subjectId
+        ├── topicId
+        ├── conceptId
+        └── reviewTaskId
+```
+
+同一个到期 ReviewTask 如果已经存在未结束 Session，`startReviewSession()` 会复用该 Session，避免重复点击产生多个 open sessions。
+
+**开始 Review Session 本身不会完成 ReviewTask。**
+
+ReviewTask 只有在对应 concept 的 practice 被记录后，才会：
+
+- 标记旧 due task COMPLETED；
+- 写入 REVIEW_COMPLETED event；
+- 根据新学习状态生成下一次 ReviewTask。
+
+这保证“进入复习页面”不等于“完成复习”。
 
 ### currentQuestionId
 
