@@ -1,34 +1,51 @@
 # StudyOS Current Status
 
 > Snapshot date: **2026-09-22**  
-> Verified against: `main@fadc5b4ffe03c0b1eebfad1af18b631703d77070`
+> Verified through CI run: **35710581375** on `main@725073a5f8090e3c6aa4bf4f3f7c554dade2ba96`
 
 本文件只描述“当前真实状态”。未来计划请看 [ROADMAP.md](./ROADMAP.md)。
 
 ## 1. 总体阶段
 
-**阶段：V0.1 Foundation / Early Development**
+**阶段：Phase 1 — V0.1 Closed Learning Loop / Early Development**
 
-当前已经具备完整项目骨架和部分学习闭环，但还不应视为稳定 MVP，更不是 production-ready。
+Phase 0 Repository Stabilization 已达到退出条件：
 
-当前判断：
+```text
+fresh checkout
+→ npm ci
+→ migrate deploy
+→ seed
+→ typecheck
+→ unit tests
+→ real MySQL integration tests
+→ production build
+→ production server start
+→ /api/health smoke test
+```
+
+以上链路已由 GitHub Actions 完整验证。
+
+当前仍不是 production-ready 产品。
 
 | 领域 | 状态 |
 | --- | --- |
-| 项目基础设施 | ✅ 基础完成 |
-| 数据模型 | ✅ 基础完成 |
+| Repository reproducibility | ✅ |
+| Versioned Prisma migrations | ✅ |
+| CI production verification | ✅ |
 | Deterministic Learning Engine | ✅ 基础完成 |
+| MySQL service integration tests | 🟡 已建立，覆盖仍少 |
 | Study Agent | 🟡 可运行骨架 |
-| Agent Tools | 🟡 可运行骨架 |
+| Agent Tool contract | ✅ 基础边界建立 |
 | Dashboard | 🟡 Skeleton |
 | Knowledge | 🟡 Skeleton |
-| Reviews | 🟡 Skeleton |
-| Study Session UI | 🟡 Skeleton |
-| Mistake UX | ❌ 未完成 |
-| Concept Detail | ❌ 未完成 |
-| Persistent conversation session | ❌ 未完成 |
-| Agent eval suite | ❌ 未完成 |
-| Integration / E2E tests | ❌ 未完成 |
+| Reviews | 🟡 已可进入绑定 Concept 的 StudySession |
+| Study Session context | 🟡 已可恢复结构化 context |
+| Session End / Summary UX | ❌ |
+| Mistake UX | ❌ |
+| Concept Detail | ❌ |
+| Persistent conversation transcript | ❌ |
+| Agent eval suite | ❌ |
 | Authentication | ❌ 有意延期 |
 | Deployment | ❌ 未设计 |
 | Sources / PDF / RAG | ❌ 有意延期 |
@@ -36,11 +53,11 @@
 
 图例：
 
-- ✅ Done：当前版本已经形成明确闭环。
-- 🟡 Partial：代码存在，但产品闭环、测试或 UX 不完整。
+- ✅ Done：当前阶段对应能力已有明确、测试过的基础闭环。
+- 🟡 Partial：实现存在，但测试、产品体验或覆盖仍不完整。
 - ❌ Not implemented：尚未实现。
 
-## 2. 当前已实现
+## 2. 当前工程基础
 
 ### 2.1 技术栈
 
@@ -55,9 +72,66 @@
 - MySQL 8
 - Vitest
 
-### 2.2 数据层
+### 2.2 可重复性
 
-已存在：
+仓库当前已提交：
+
+- `package-lock.json`
+- `prisma/migrations/20260922_initial/migration.sql`
+- `prisma/migrations/20260922_review_session_context/migration.sql`
+- `prisma/migrations/migration_lock.toml`
+
+CI 使用：
+
+```bash
+npm ci
+npm run db:deploy
+```
+
+不再依赖 CI 临时生成 schema。
+
+### 2.3 环境变量
+
+`src/server/env.ts` 使用 Zod 解析服务端环境。
+
+当前校验：
+
+- DB runtime connection
+- OpenAI model / optional API key
+- default single-user identity
+- log level
+- NODE_ENV
+
+### 2.4 Logging / errors
+
+已建立：
+
+- requestId
+- `x-request-id` response header
+- JSON structured server logs
+- stable API error body：
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "...",
+    "requestId": "..."
+  }
+}
+```
+
+Agent Tool 统一返回：
+
+```text
+{ ok: true, data }
+or
+{ ok: false, error }
+```
+
+## 3. Learner Model
+
+### 3.1 当前数据模型
 
 - User
 - Subject
@@ -72,16 +146,16 @@
 - ReviewTask
 - LearningEvent
 
-当前采用：
+核心原则：
 
 ```text
 LearningEvent = evidence history
 LearningState = current projection
 ```
 
-### 2.3 Learning Engine
+### 3.2 Learning Engine
 
-已实现：
+当前：
 
 ```text
 performance =
@@ -96,7 +170,7 @@ new mastery =
 + 0.25 * performance
 ```
 
-基础 review interval：
+Review interval baseline：
 
 - 1 day
 - 3 days
@@ -104,246 +178,224 @@ new mastery =
 - 14 days
 - 30 days
 
-已有纯函数单元测试。
+LLM 不直接设置 mastery / review date。
 
-### 2.4 Study Agent
+## 4. Study Agent
 
-当前为 **单 Agent**。
+当前仍为 **单 Agent**。
 
-已提供 9 个 tools：
+已有 10 个 tools：
 
-1. `search_concepts`
-2. `get_learning_state`
-3. `get_prerequisites`
-4. `get_recent_mistakes`
-5. `get_due_reviews`
-6. `create_question`
-7. `get_current_question`
-8. `record_attempt`
-9. `finish_study_session`
+1. `get_session_context`
+2. `search_concepts`
+3. `get_learning_state`
+4. `get_prerequisites`
+5. `get_recent_mistakes`
+6. `get_due_reviews`
+7. `create_question`
+8. `get_current_question`
+9. `record_attempt`
+10. `finish_study_session`
 
-当前约束：
+边界：
 
-- Tool → Service → Prisma。
-- Agent 无 raw Prisma / SQL / shell。
-- Agent 不直接设置 mastery。
-- 会影响 mastery 的题必须先持久化。
-- 当前一个 StudySession 只持有一个 `currentQuestionId`。
+- Tool → Service → Prisma
+- no raw Prisma / SQL / shell
+- no direct mastery mutation
+- graded question 必须先持久化
+- Tool failure 与 empty data 明确区分
 
-### 2.5 API
+## 5. Phase 1 当前已经推进的闭环
 
-当前接口：
+### Review → StudySession
+
+现在：
+
+```text
+Reviews page
+  ↓
+POST /api/reviews/:id/start
+  ↓
+validate due PENDING ReviewTask
+  ↓
+create/reuse REVIEW StudySession
+  ├── subjectId
+  ├── topicId
+  ├── conceptId
+  └── reviewTaskId
+  ↓
+/study?sessionId=...
+  ↓
+GET /api/sessions/:id
+  ↓
+restore session context
+```
+
+重要行为：
+
+- 同一 ReviewTask 的未结束 Session 会复用；
+- 刷新 Study 页面后 concept / review context 可以恢复；
+- 聊天 transcript 暂时不会恢复；
+- 打开 Review Session **不会**完成复习；
+- 对该 concept 记录 practice 后才完成旧 due ReviewTask，并生成下一次任务。
+
+## 6. 当前 API
 
 - `GET /api/health`
 - `GET /api/dashboard`
 - `GET /api/knowledge`
 - `GET /api/reviews/today`
+- `POST /api/reviews/:id/start`
 - `POST /api/sessions`
+- `GET /api/sessions/:id`
 - `POST /api/agent/message`
 
-### 2.6 UI
+## 7. 测试与 CI
 
-当前页面：
+### Unit
 
-- `/` Dashboard
-- `/study`
-- `/knowledge`
-- `/reviews`
+已有 Learning Engine pure tests。
 
-它们目前是 MVP skeleton，不代表完整产品体验。
+### MySQL integration
 
-### 2.7 Seed
+当前至少覆盖两个核心 service slice：
 
-已有初始微观经济学 / 线性代数知识点，用于测试：
+1. `recordCurrentAttempt`
+   - Attempt
+   - LearningEvent
+   - LearningState
+   - Mistake
+   - close old due review
+   - create next review
+   - clear active question
 
-- Expected Utility
-- Risk Aversion
-- Certainty Equivalent
-- Risk Premium
-- Jensen's Inequality
-- Indirect Utility
-- Expenditure Function
-- Hicksian Demand
-- Slutsky Equation
-- Linear Independence
-- Column Space
-- Matrix Rank
-- Linear Systems
+2. `startReviewSession`
+   - bound concept
+   - bound review task
+   - ownership
+   - reuse existing open review session
 
-## 3. 当前 CI
+覆盖数量仍远低于 Phase 1 的 30 个核心 integration cases 目标。
 
-GitHub Actions 当前检查：
+### CI
 
-- dependency install
-- Prisma client generation
+当前完整链：
+
+- npm ci
+- Prisma generate
+- migrate deploy
+- seed
 - TypeScript typecheck
 - unit tests
+- MySQL integration tests
+- Next.js production build
+- production server smoke test
 
-最近一次已通过。
-
-但 CI **还没有**：
-
-- `next build`
-- integration test
-- MySQL service test
-- E2E browser test
-- agent eval
-- migration verification
-
-## 4. 当前已知缺口
-
-### P0 — Repository reproducibility
-
-目前没有：
-
-- committed `package-lock.json`
-- versioned initial Prisma migration
-
-风险：
-
-> 不同时间 `npm install` 和本地创建 migration 的结果可能产生漂移。
-
-### P0 — Build verification
-
-CI 没有跑：
-
-```bash
-npm run build
-```
-
-所以 typecheck 通过 ≠ Next.js production build 一定通过。
-
-### P0 — Agent eval
-
-当前 Agent 行为主要靠 prompt 约束，没有固定 eval cases。
-
-尚未验证：
-
-- 弱前置知识是否稳定触发修复；
-- 模糊 concept 是否正确 resolve；
-- 无 active question 时是否避免误记 Attempt；
-- hint 后 independence 是否稳定降低；
-- 相似题多次运行是否得到可接受行为。
-
-### P1 — Conversation persistence
-
-当前：
-
-```text
-Browser sends recent history
-      ↓
-POST /api/agent/message
-      ↓
-Agent
-```
-
-数据库没有真正的 conversation message store，也没有 Agents SDK persistent session backend。
-
-这意味着：
-
-- 页面刷新可能丢失聊天上下文；
-- 学习状态不会丢，但短期会话上下文会丢。
-
-### P1 — Review UX
-
-当前 Review 页面能显示 due tasks，但：
-
-- “开始复习”只是跳转到 `/study`；
-- 没有把 reviewTask / concept context 自动带入 Session；
-- 没有独立 review completion interaction。
-
-后端已具备：同 concept 的 due review 在一次 practice 被记录后自动关闭。
-
-### P1 — Mistake UX
-
-数据库会产生 Mistake，但尚没有：
-
-- 错题列表；
-- Mistake detail；
-- 错误模式统计；
-- resolve / reopen workflow。
-
-### P1 — Concept UX
-
-Knowledge 目前仅显示树状列表。
-
-尚没有：
-
-- Concept detail；
-- prerequisite view；
-- recent attempts；
-- mistake history；
-- mastery timeline；
-- learning-event explanation。
+## 8. 当前主要缺口
 
 ### P1 — Session lifecycle
 
-已有 `finish_study_session` tool，但 UI 没有明确：
+尚缺：
 
-- end session action；
-- summary view；
-- session history detail。
+- 明确 End Session UI
+- direct finish API
+- summary view
+- session history detail
 
-### P1 — Observability
+### P1 — Review UX
 
-`StudySession.traceId` 字段已存在，但当前没有把 Agent trace id 写回数据库。
+已完成 Review → bound Session。
 
-也没有：
+仍缺：
 
-- structured application logging；
-- request id；
-- error aggregation；
-- latency / cost metrics。
+- 完成后的即时 UI feedback
+- review outcome summary
+- completed / upcoming review history
 
-### P2 — Security
+### P1 — Concept UX
 
-当前为 single-user development mode：
+尚缺：
 
-```text
-DEFAULT_USER_EMAIL
-→ getDefaultUser()
-```
+- Concept detail
+- prerequisite view
+- recent attempts
+- mistake history
+- mastery timeline
+- state-change explanation
 
-没有 authentication / authorization。
+### P1 — Mistake UX
 
-因此当前版本只适合：
+尚缺：
 
-- 本地；
-- 受控开发环境。
+- mistake list
+- detail
+- resolve / reopen
+- pattern aggregation
 
-不适合直接开放公网给多用户使用。
+### P1 — User correction
 
-### P2 — Data governance
+尚缺：
 
-目前没有：
+- correction of Agent evaluation
+- correction of mistake diagnosis
+- safe state recomputation after correction
 
-- export；
-- delete-account flow；
-- backup strategy；
-- audit tooling；
-- retention strategy。
+### P1 — Conversation persistence
 
-## 5. 当前不应该做的事
+短期上下文仍由浏览器回传。
 
-在 P0/P1 没稳定前，不应优先投入：
+因此刷新后：
 
-- 多 Agent；
-- Vector DB；
-- Neo4j；
-- Redis；
-- PDF ingestion；
-- OCR；
-- Web research agent；
-- teacher dashboard；
-- payment；
-- multi-tenant architecture。
+- Session context 可恢复；
+- transcript 不可恢复。
 
-## 6. 下一步
+### P1/P2 — Agent reliability
 
-唯一权威优先级请看：
+尚无正式 Agent eval dataset。
 
-[ROADMAP.md](./ROADMAP.md)
+### Observability
 
-当前近期目标：
+已有：
 
-> **先把 V0.1 从“骨架能运行”提升到“学习闭环可靠、可测试、可持续开发”。**
+- requestId
+- JSON application logs
+
+尚缺：
+
+- StudySession.traceId 实际关联
+- model latency / token usage
+- tool-call metrics
+- centralized error aggregation
+
+### Dependency security
+
+当前 lockfile 的 CI `npm audit` 输出仍报告若干依赖漏洞，需要在进入公网部署前单独 triage。
+
+不要直接使用 `npm audit fix --force` 破坏锁定依赖；应按依赖来源逐项处理。
+
+## 9. 当前明确延期
+
+暂不优先：
+
+- multi-agent
+- Redis / queues
+- Vector DB
+- Neo4j
+- PDF ingestion
+- OCR
+- web research agent
+- teacher dashboard
+- payment
+- multi-tenant architecture
+
+## 10. 下一步
+
+当前最近的 vertical slice：
+
+> **Session End + Summary**
+
+完成后再优先推进：
+
+> **Concept Detail + Attempt/Mistake history**
+
+唯一权威优先级见 [ROADMAP.md](./ROADMAP.md)。
