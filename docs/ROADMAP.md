@@ -76,20 +76,20 @@ Choose / due concept
 - [x] Review task 能直接进入对应 concept 的 StudySession
 - [x] Study 页面显示并恢复当前 concept / review context
 - [x] 同一 ReviewTask 重复点击复用 open Session
-- [ ] Session 有明确 End action
-- [ ] Session summary 可查看
+- [x] Session 有明确 End action
+- [x] Session summary 可查看
 - [ ] Session history detail
 - [ ] Review 完成后的即时 outcome feedback
 - [ ] Review history / next review 展示
 
 ### Concept / Evidence
 
-- [ ] Concept detail page
-- [ ] Prerequisite view
-- [ ] Attempt history
+- [x] Concept detail page
+- [x] Prerequisite view
+- [x] Attempt history
 - [ ] Mistake list + detail
-- [ ] Mastery change explanation
-- [ ] LearningEvent timeline
+- [x] Mastery change explanation
+- [x] LearningEvent timeline
 
 ### Learner correction
 
