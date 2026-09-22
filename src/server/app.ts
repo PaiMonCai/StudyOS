@@ -1,8 +1,15 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { SessionMode } from "@/generated/prisma/enums";
 import { runStudyAgent } from "@/server/agent/study-agent";
 import { getDefaultUser } from "@/server/db";
+import { env } from "@/server/env";
+import {
+  AppError,
+  errorBody,
+  normalizeError,
+} from "@/server/errors";
+import { logger } from "@/server/logger";
 import {
   createStudySession,
   getDashboard,
@@ -10,13 +17,54 @@ import {
   getKnowledgeTree,
 } from "@/server/services/study-service";
 
-export const app = new Hono().basePath("/api");
+type AppEnv = {
+  Variables: {
+    requestId: string;
+  };
+};
+
+export const app = new Hono<AppEnv>().basePath("/api");
+
+app.use("*", async (c, next) => {
+  const requestId =
+    c.req.header("x-request-id")?.trim() || crypto.randomUUID();
+  const startedAt = Date.now();
+
+  c.set("requestId", requestId);
+
+  try {
+    await next();
+  } finally {
+    c.header("x-request-id", requestId);
+
+    logger.info("http.request", {
+      requestId,
+      method: c.req.method,
+      path: c.req.path,
+      status: c.res.status,
+      durationMs: Date.now() - startedAt,
+    });
+  }
+});
+
+async function readJson(c: Context<AppEnv>) {
+  try {
+    return await c.req.json();
+  } catch {
+    throw new AppError({
+      code: "INVALID_REQUEST",
+      message: "Request body must be valid JSON.",
+      statusCode: 400,
+    });
+  }
+}
 
 app.get("/health", (c) =>
   c.json({
     ok: true,
     service: "studyos",
     version: "0.1.0",
+    requestId: c.get("requestId"),
   }),
 );
 
@@ -45,14 +93,16 @@ const createSessionSchema = z.object({
 });
 
 app.post("/sessions", async (c) => {
-  const parsed = createSessionSchema.safeParse(await c.req.json());
+  const parsed = createSessionSchema.safeParse(await readJson(c));
 
   if (!parsed.success) {
     return c.json(
-      {
-        error: "INVALID_REQUEST",
+      errorBody({
+        code: "INVALID_REQUEST",
+        message: "Invalid study session request.",
+        requestId: c.get("requestId"),
         details: parsed.error.flatten(),
-      },
+      }),
       400,
     );
   }
@@ -81,25 +131,27 @@ const agentMessageSchema = z.object({
 });
 
 app.post("/agent/message", async (c) => {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!env.OPENAI_API_KEY) {
     return c.json(
-      {
-        error: "OPENAI_API_KEY_MISSING",
-        message:
-          "Set OPENAI_API_KEY before using the Study Agent.",
-      },
+      errorBody({
+        code: "OPENAI_API_KEY_MISSING",
+        message: "Set OPENAI_API_KEY before using the Study Agent.",
+        requestId: c.get("requestId"),
+      }),
       503,
     );
   }
 
-  const parsed = agentMessageSchema.safeParse(await c.req.json());
+  const parsed = agentMessageSchema.safeParse(await readJson(c));
 
   if (!parsed.success) {
     return c.json(
-      {
-        error: "INVALID_REQUEST",
+      errorBody({
+        code: "INVALID_REQUEST",
+        message: "Invalid Study Agent request.",
+        requestId: c.get("requestId"),
         details: parsed.error.flatten(),
-      },
+      }),
       400,
     );
   }
@@ -117,31 +169,42 @@ app.post("/agent/message", async (c) => {
 });
 
 app.onError((error, c) => {
-  console.error(error);
+  const normalized = normalizeError(error);
+  const requestId = c.get("requestId") || "unknown";
 
-  const knownErrors = new Set([
-    "CONCEPT_NOT_FOUND",
-    "SESSION_NOT_FOUND",
-    "NO_ACTIVE_QUESTION",
-  ]);
+  logger.error("http.error", {
+    requestId,
+    code: normalized.code,
+    statusCode: normalized.statusCode,
+    message: error instanceof Error ? error.message : String(error),
+    stack:
+      env.NODE_ENV === "development" && error instanceof Error
+        ? error.stack
+        : undefined,
+  });
 
-  if (knownErrors.has(error.message)) {
-    return c.json(
-      {
-        error: error.message,
-      },
-      404,
-    );
-  }
-
-  return c.json(
-    {
-      error: "INTERNAL_ERROR",
-      message:
-        process.env.NODE_ENV === "development"
+  const body = errorBody({
+    code: normalized.code,
+    message:
+      normalized.code === "INTERNAL_ERROR" && env.NODE_ENV === "development"
+        ? error instanceof Error
           ? error.message
-          : "Unexpected server error.",
-    },
-    500,
-  );
+          : normalized.message
+        : normalized.message,
+    requestId,
+    details: normalized.details,
+  });
+
+  switch (normalized.statusCode) {
+    case 400:
+      return c.json(body, 400);
+    case 404:
+      return c.json(body, 404);
+    case 409:
+      return c.json(body, 409);
+    case 503:
+      return c.json(body, 503);
+    default:
+      return c.json(body, 500);
+  }
 });
