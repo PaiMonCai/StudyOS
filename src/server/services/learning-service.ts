@@ -1,6 +1,7 @@
 import {
   ErrorType,
   LearningEventType,
+  MistakeStatus,
   ReviewSource,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
@@ -116,6 +117,136 @@ export async function getRecentMistakes(
     },
     take: 8,
   });
+}
+
+export async function listMistakes(input: {
+  userId: string;
+  status?: MistakeStatus;
+  limit?: number;
+}) {
+  return prisma.mistake.findMany({
+    where: {
+      userId: input.userId,
+      ...(input.status ? { status: input.status } : {}),
+    },
+    include: {
+      concept: {
+        include: {
+          topic: {
+            include: {
+              subject: true,
+            },
+          },
+        },
+      },
+      attempt: {
+        include: {
+          question: {
+            select: {
+              id: true,
+              stem: true,
+              type: true,
+              difficulty: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: Math.max(1, Math.min(200, input.limit ?? 100)),
+  });
+}
+
+export async function getMistakeDetail(
+  userId: string,
+  mistakeId: string,
+) {
+  const mistake = await prisma.mistake.findFirst({
+    where: {
+      id: mistakeId,
+      userId,
+    },
+    include: {
+      concept: {
+        include: {
+          topic: {
+            include: {
+              subject: true,
+            },
+          },
+          learningStates: {
+            where: {
+              userId,
+            },
+          },
+        },
+      },
+      attempt: {
+        include: {
+          question: true,
+          session: {
+            select: {
+              id: true,
+              mode: true,
+              startedAt: true,
+              endedAt: true,
+              summary: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!mistake) {
+    throw new Error("MISTAKE_NOT_FOUND");
+  }
+
+  return {
+    ...mistake,
+    learningState: mistake.concept.learningStates[0] ?? null,
+  };
+}
+
+export async function setMistakeStatus(input: {
+  userId: string;
+  mistakeId: string;
+  status: MistakeStatus;
+}) {
+  const mistake = await prisma.mistake.findFirst({
+    where: {
+      id: input.mistakeId,
+      userId: input.userId,
+    },
+    select: {
+      id: true,
+      status: true,
+      resolvedAt: true,
+    },
+  });
+
+  if (!mistake) {
+    throw new Error("MISTAKE_NOT_FOUND");
+  }
+
+  if (mistake.status === input.status) {
+    return getMistakeDetail(input.userId, input.mistakeId);
+  }
+
+  await prisma.mistake.update({
+    where: {
+      id: input.mistakeId,
+    },
+    data: {
+      status: input.status,
+      resolvedAt:
+        input.status === MistakeStatus.RESOLVED ? new Date() : null,
+    },
+  });
+
+  return getMistakeDetail(input.userId, input.mistakeId);
 }
 
 function metadataNumber(metadata: unknown, key: string) {
