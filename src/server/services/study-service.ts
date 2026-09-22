@@ -45,6 +45,34 @@ export async function finishStudySession(input: {
   });
 }
 
+export async function searchConcepts(query: string, limit = 8) {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  return prisma.concept.findMany({
+    where: {
+      status: "ACTIVE",
+      OR: [
+        { name: { contains: trimmed } },
+        { slug: { contains: trimmed } },
+        { description: { contains: trimmed } },
+      ],
+    },
+    include: {
+      topic: {
+        include: {
+          subject: true,
+        },
+      },
+    },
+    orderBy: [
+      { difficulty: "asc" },
+      { name: "asc" },
+    ],
+    take: limit,
+  });
+}
+
 export async function getDueReviews(userId: string, limit = 10) {
   return prisma.reviewTask.findMany({
     where: {
