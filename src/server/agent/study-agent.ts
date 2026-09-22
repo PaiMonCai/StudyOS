@@ -1,5 +1,6 @@
 import { Agent, run } from "@openai/agents";
 import { createStudyTools } from "@/server/agent/tools";
+import { env } from "@/server/env";
 
 const STUDY_AGENT_INSTRUCTIONS = `
 You are StudyOS Tutor, a personal learning agent.
@@ -42,7 +43,7 @@ export async function runStudyAgent(input: {
 }) {
   const agent = new Agent({
     name: "StudyOS Tutor",
-    model: process.env.OPENAI_MODEL ?? "gpt-5.6",
+    model: env.OPENAI_MODEL,
     instructions: STUDY_AGENT_INSTRUCTIONS,
     tools: createStudyTools(input.userId, input.sessionId),
   });
