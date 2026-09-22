@@ -87,7 +87,7 @@ Choose / due concept
 - [x] Concept detail page
 - [x] Prerequisite view
 - [x] Attempt history
-- [ ] Mistake list + detail
+- [x] Mistake list + detail
 - [x] Mastery change explanation
 - [x] LearningEvent timeline
 
