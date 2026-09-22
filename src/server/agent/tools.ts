@@ -1,6 +1,7 @@
 import { tool } from "@openai/agents";
 import { z } from "zod";
 import { ErrorType } from "@/generated/prisma/enums";
+import { toolResult } from "@/server/agent/tool-result";
 import {
   createAgentQuestion,
   getCurrentQuestion,
@@ -37,16 +38,19 @@ export function createStudyTools(userId: string, sessionId: string) {
       limit: z.number().int().min(1).max(12).default(8),
     }),
     async execute({ query, limit }) {
-      const concepts = await searchConcepts(query, limit);
-      return concepts.map((concept) => ({
-        id: concept.id,
-        name: concept.name,
-        slug: concept.slug,
-        description: concept.description,
-        difficulty: concept.difficulty,
-        topic: concept.topic.name,
-        subject: concept.topic.subject.name,
-      }));
+      return toolResult("search_concepts", async () => {
+        const concepts = await searchConcepts(query, limit);
+
+        return concepts.map((concept) => ({
+          id: concept.id,
+          name: concept.name,
+          slug: concept.slug,
+          description: concept.description,
+          difficulty: concept.difficulty,
+          topic: concept.topic.name,
+          subject: concept.topic.subject.name,
+        }));
+      });
     },
   });
 
@@ -58,7 +62,9 @@ export function createStudyTools(userId: string, sessionId: string) {
       conceptId: z.string(),
     }),
     async execute({ conceptId }) {
-      return getLearningState(userId, conceptId);
+      return toolResult("get_learning_state", () =>
+        getLearningState(userId, conceptId),
+      );
     },
   });
 
@@ -70,7 +76,9 @@ export function createStudyTools(userId: string, sessionId: string) {
       conceptId: z.string(),
     }),
     async execute({ conceptId }) {
-      return getPrerequisites(userId, conceptId);
+      return toolResult("get_prerequisites", () =>
+        getPrerequisites(userId, conceptId),
+      );
     },
   });
 
@@ -82,7 +90,9 @@ export function createStudyTools(userId: string, sessionId: string) {
       conceptId: z.string().optional(),
     }),
     async execute({ conceptId }) {
-      return getRecentMistakes(userId, conceptId);
+      return toolResult("get_recent_mistakes", () =>
+        getRecentMistakes(userId, conceptId),
+      );
     },
   });
 
@@ -94,7 +104,9 @@ export function createStudyTools(userId: string, sessionId: string) {
       limit: z.number().int().min(1).max(20).default(5),
     }),
     async execute({ limit }) {
-      return getDueReviews(userId, limit);
+      return toolResult("get_due_reviews", () =>
+        getDueReviews(userId, limit),
+      );
     },
   });
 
@@ -117,19 +129,21 @@ export function createStudyTools(userId: string, sessionId: string) {
       difficulty: z.number().int().min(1).max(5),
     }),
     async execute(input) {
-      const question = await createAgentQuestion({
-        userId,
-        sessionId,
-        ...input,
-      });
+      return toolResult("create_question", async () => {
+        const question = await createAgentQuestion({
+          userId,
+          sessionId,
+          ...input,
+        });
 
-      return {
-        questionId: question.id,
-        conceptId: question.conceptId,
-        stem: question.stem,
-        type: question.type,
-        difficulty: question.difficulty,
-      };
+        return {
+          questionId: question.id,
+          conceptId: question.conceptId,
+          stem: question.stem,
+          type: question.type,
+          difficulty: question.difficulty,
+        };
+      });
     },
   });
 
@@ -139,7 +153,9 @@ export function createStudyTools(userId: string, sessionId: string) {
       "Get the active persisted question for this study session before evaluating the learner's answer.",
     parameters: z.object({}),
     async execute() {
-      return getCurrentQuestion(userId, sessionId);
+      return toolResult("get_current_question", () =>
+        getCurrentQuestion(userId, sessionId),
+      );
     },
   });
 
@@ -157,19 +173,21 @@ export function createStudyTools(userId: string, sessionId: string) {
       feedback: z.string(),
     }),
     async execute(input) {
-      return recordCurrentAttempt({
-        userId,
-        sessionId,
-        answer: input.answer,
-        evaluation: {
-          correctness: input.correctness,
-          reasoning: input.reasoning,
-          independence: input.independence,
-          errorType: input.errorType as ErrorType,
-          misconceptions: input.misconceptions,
-          feedback: input.feedback,
-        },
-      });
+      return toolResult("record_attempt", () =>
+        recordCurrentAttempt({
+          userId,
+          sessionId,
+          answer: input.answer,
+          evaluation: {
+            correctness: input.correctness,
+            reasoning: input.reasoning,
+            independence: input.independence,
+            errorType: input.errorType as ErrorType,
+            misconceptions: input.misconceptions,
+            feedback: input.feedback,
+          },
+        }),
+      );
     },
   });
 
@@ -181,11 +199,13 @@ export function createStudyTools(userId: string, sessionId: string) {
       summary: z.string().min(1).max(2000),
     }),
     async execute({ summary }) {
-      return finishStudySession({
-        userId,
-        sessionId,
-        summary,
-      });
+      return toolResult("finish_study_session", () =>
+        finishStudySession({
+          userId,
+          sessionId,
+          summary,
+        }),
+      );
     },
   });
 
