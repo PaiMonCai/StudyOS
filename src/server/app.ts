@@ -24,6 +24,7 @@ import {
   getKnowledgeTree,
   getStudySession,
   listReviewTasks,
+  listStudySessions,
   startReviewSession,
 } from "@/server/services/study-service";
 
@@ -183,6 +184,11 @@ app.post("/reviews/:id/start", async (c) => {
   const user = await getDefaultUser();
   const session = await startReviewSession(user.id, c.req.param("id"));
   return c.json(session);
+});
+
+app.get("/sessions", async (c) => {
+  const user = await getDefaultUser();
+  return c.json(await listStudySessions(user.id, 50));
 });
 
 app.get("/sessions/:id", async (c) => {
