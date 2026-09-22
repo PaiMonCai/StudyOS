@@ -131,6 +131,36 @@ Agent
 Prisma
 ```
 
+### Tool result contract
+
+所有 Study Agent tools 统一返回：
+
+```ts
+{ ok: true, data: ... }
+```
+
+或：
+
+```ts
+{
+  ok: false,
+  error: {
+    code: string,
+    message: string,
+    retryable: boolean
+  }
+}
+```
+
+目的：
+
+- 不把数据库异常或内部 stack 直接暴露给模型；
+- 区分“查询结果为空”和“工具执行失败”；
+- Agent 不能把失败操作误认为已经持久化；
+- retry 行为由明确的 `retryable` 信号约束。
+
+Agent 只有在 `ok: true` 时，才能声称 create / record / finish 等写操作成功。
+
 ## 5. 当前教学决策原则
 
 ### Low mastery
