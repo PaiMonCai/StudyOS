@@ -1,8 +1,13 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { SessionMode } from "@/generated/prisma/enums";
+import { MistakeStatus, SessionMode } from "@/generated/prisma/enums";
 import { runStudyAgent } from "@/server/agent/study-agent";
-import { getConceptDetail } from "@/server/services/learning-service";
+import {
+  getConceptDetail,
+  getMistakeDetail,
+  listMistakes,
+  setMistakeStatus,
+} from "@/server/services/learning-service";
 import { getDefaultUser } from "@/server/db";
 import { env } from "@/server/env";
 import {
@@ -85,6 +90,60 @@ app.get("/knowledge", async (c) => {
 app.get("/concepts/:id", async (c) => {
   const user = await getDefaultUser();
   return c.json(await getConceptDetail(user.id, c.req.param("id")));
+});
+
+const mistakeStatusQuerySchema = z.enum(["OPEN", "RESOLVED"]).optional();
+
+app.get("/mistakes", async (c) => {
+  const parsedStatus = mistakeStatusQuerySchema.safeParse(c.req.query("status"));
+
+  if (!parsedStatus.success) {
+    return c.json(
+      errorBody({
+        code: "INVALID_REQUEST",
+        message: "Invalid mistake status filter.",
+        requestId: c.get("requestId"),
+        details: parsedStatus.error.flatten(),
+      }),
+      400,
+    );
+  }
+
+  const user = await getDefaultUser();
+  return c.json(
+    await listMistakes({
+      userId: user.id,
+      status: parsedStatus.data as MistakeStatus | undefined,
+      limit: 100,
+    }),
+  );
+});
+
+app.get("/mistakes/:id", async (c) => {
+  const user = await getDefaultUser();
+  return c.json(await getMistakeDetail(user.id, c.req.param("id")));
+});
+
+app.post("/mistakes/:id/resolve", async (c) => {
+  const user = await getDefaultUser();
+  return c.json(
+    await setMistakeStatus({
+      userId: user.id,
+      mistakeId: c.req.param("id"),
+      status: MistakeStatus.RESOLVED,
+    }),
+  );
+});
+
+app.post("/mistakes/:id/reopen", async (c) => {
+  const user = await getDefaultUser();
+  return c.json(
+    await setMistakeStatus({
+      userId: user.id,
+      mistakeId: c.req.param("id"),
+      status: MistakeStatus.OPEN,
+    }),
+  );
 });
 
 app.get("/reviews/today", async (c) => {
