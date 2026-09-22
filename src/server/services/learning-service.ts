@@ -118,6 +118,165 @@ export async function getRecentMistakes(
   });
 }
 
+function metadataNumber(metadata: unknown, key: string) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "number" ? value : null;
+}
+
+export async function getConceptDetail(
+  userId: string,
+  conceptId: string,
+) {
+  const base = await getLearningState(userId, conceptId);
+
+  const [
+    prerequisites,
+    dependentRelations,
+    attempts,
+    mistakes,
+    events,
+    reviewTasks,
+  ] = await Promise.all([
+    getPrerequisites(userId, conceptId),
+    prisma.conceptRelation.findMany({
+      where: {
+        fromConceptId: conceptId,
+        relationType: "PREREQUISITE",
+      },
+      include: {
+        toConcept: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    }),
+    prisma.attempt.findMany({
+      where: {
+        userId,
+        question: {
+          conceptId,
+        },
+      },
+      include: {
+        question: {
+          select: {
+            id: true,
+            stem: true,
+            type: true,
+            difficulty: true,
+          },
+        },
+        mistakes: true,
+      },
+      orderBy: {
+        submittedAt: "desc",
+      },
+      take: 20,
+    }),
+    prisma.mistake.findMany({
+      where: {
+        userId,
+        conceptId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 20,
+    }),
+    prisma.learningEvent.findMany({
+      where: {
+        userId,
+        conceptId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 50,
+    }),
+    prisma.reviewTask.findMany({
+      where: {
+        userId,
+        conceptId,
+      },
+      orderBy: {
+        scheduledAt: "desc",
+      },
+      take: 12,
+    }),
+  ]);
+
+  const dependentIds = dependentRelations.map(
+    (relation) => relation.toConceptId,
+  );
+
+  const dependentStates = dependentIds.length
+    ? await prisma.learningState.findMany({
+        where: {
+          userId,
+          conceptId: {
+            in: dependentIds,
+          },
+        },
+      })
+    : [];
+
+  const dependentStateMap = new Map(
+    dependentStates.map((state) => [state.conceptId, state]),
+  );
+
+  const masteryHistory = events
+    .filter((event) => event.type === LearningEventType.QUESTION_ANSWERED)
+    .map((event) => {
+      const oldMastery = metadataNumber(event.metadata, "oldMastery");
+      const newMastery = metadataNumber(event.metadata, "newMastery");
+
+      return {
+        eventId: event.id,
+        createdAt: event.createdAt,
+        score: event.score,
+        oldMastery,
+        newMastery,
+        delta:
+          oldMastery === null || newMastery === null
+            ? null
+            : newMastery - oldMastery,
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is typeof item & {
+        oldMastery: number;
+        newMastery: number;
+        delta: number;
+      } =>
+        item.oldMastery !== null &&
+        item.newMastery !== null &&
+        item.delta !== null,
+    );
+
+  return {
+    ...base,
+    prerequisites,
+    dependents: dependentRelations.map((relation) => ({
+      conceptId: relation.toConceptId,
+      name: relation.toConcept.name,
+      mastery:
+        dependentStateMap.get(relation.toConceptId)?.mastery ?? 0.3,
+      strength: relation.strength,
+    })),
+    attempts,
+    mistakes,
+    events,
+    reviewTasks,
+    masteryHistory,
+  };
+}
+
 export async function createAgentQuestion(input: {
   userId: string;
   sessionId: string;
