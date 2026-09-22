@@ -1,10 +1,13 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { ErrorType } from "@/generated/prisma/enums";
+import { ErrorType, MistakeStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 import {
   createAgentQuestion,
   getConceptDetail,
+  getMistakeDetail,
+  listMistakes,
   recordCurrentAttempt,
+  setMistakeStatus,
 } from "@/server/services/learning-service";
 
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -208,5 +211,71 @@ describe("learning service integration", () => {
     expect(detail.masteryHistory[0]?.newMastery).toBeCloseTo(result.newMastery);
     expect(detail.reviewTasks.length).toBeGreaterThanOrEqual(2);
     expect(detail.events.length).toBeGreaterThanOrEqual(5);
+
+    const mistakeId = result.mistake?.id;
+    expect(mistakeId).toBeTruthy();
+
+    const stateBeforeResolve = await prisma.learningState.findUniqueOrThrow({
+      where: {
+        userId_conceptId: {
+          userId: user.id,
+          conceptId: concept.id,
+        },
+      },
+    });
+
+    const attemptBeforeResolve = await prisma.attempt.findUniqueOrThrow({
+      where: { id: result.attempt.id },
+    });
+
+    const resolved = await setMistakeStatus({
+      userId: user.id,
+      mistakeId: mistakeId!,
+      status: MistakeStatus.RESOLVED,
+    });
+
+    expect(resolved.status).toBe(MistakeStatus.RESOLVED);
+    expect(resolved.resolvedAt).not.toBeNull();
+
+    const resolvedList = await listMistakes({
+      userId: user.id,
+      status: MistakeStatus.RESOLVED,
+    });
+    expect(resolvedList.some((item) => item.id === mistakeId)).toBe(true);
+
+    const reopened = await setMistakeStatus({
+      userId: user.id,
+      mistakeId: mistakeId!,
+      status: MistakeStatus.OPEN,
+    });
+
+    expect(reopened.status).toBe(MistakeStatus.OPEN);
+    expect(reopened.resolvedAt).toBeNull();
+
+    const mistakeDetail = await getMistakeDetail(user.id, mistakeId!);
+    expect(mistakeDetail.attempt?.id).toBe(result.attempt.id);
+    expect(mistakeDetail.concept.id).toBe(concept.id);
+
+    const [stateAfterWorkflow, attemptAfterWorkflow] = await Promise.all([
+      prisma.learningState.findUniqueOrThrow({
+        where: {
+          userId_conceptId: {
+            userId: user.id,
+            conceptId: concept.id,
+          },
+        },
+      }),
+      prisma.attempt.findUniqueOrThrow({
+        where: { id: result.attempt.id },
+      }),
+    ]);
+
+    expect(stateAfterWorkflow.mastery).toBe(stateBeforeResolve.mastery);
+    expect(stateAfterWorkflow.confidence).toBe(stateBeforeResolve.confidence);
+    expect(stateAfterWorkflow.attemptCount).toBe(stateBeforeResolve.attemptCount);
+    expect(attemptAfterWorkflow.score).toBe(attemptBeforeResolve.score);
+    expect(attemptAfterWorkflow.evaluation).toEqual(
+      attemptBeforeResolve.evaluation,
+    );
   });
 });
