@@ -12,6 +12,7 @@ import {
 import {
   finishStudySession,
   getDueReviews,
+  searchConcepts,
 } from "@/server/services/study-service";
 
 const errorTypeSchema = z.enum([
@@ -27,6 +28,28 @@ const errorTypeSchema = z.enum([
 ]);
 
 export function createStudyTools(userId: string, sessionId: string) {
+  const searchConceptsTool = tool({
+    name: "search_concepts",
+    description:
+      "Resolve a learner's natural-language concept name to StudyOS concept IDs before reading or writing concept-scoped state.",
+    parameters: z.object({
+      query: z.string().min(1),
+      limit: z.number().int().min(1).max(12).default(8),
+    }),
+    async execute({ query, limit }) {
+      const concepts = await searchConcepts(query, limit);
+      return concepts.map((concept) => ({
+        id: concept.id,
+        name: concept.name,
+        slug: concept.slug,
+        description: concept.description,
+        difficulty: concept.difficulty,
+        topic: concept.topic.name,
+        subject: concept.topic.subject.name,
+      }));
+    },
+  });
+
   const getLearningStateTool = tool({
     name: "get_learning_state",
     description:
@@ -167,6 +190,7 @@ export function createStudyTools(userId: string, sessionId: string) {
   });
 
   return [
+    searchConceptsTool,
     getLearningStateTool,
     getPrerequisitesTool,
     getRecentMistakesTool,
