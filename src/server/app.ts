@@ -15,6 +15,8 @@ import {
   getDashboard,
   getDueReviews,
   getKnowledgeTree,
+  getStudySession,
+  startReviewSession,
 } from "@/server/services/study-service";
 
 type AppEnv = {
@@ -81,6 +83,17 @@ app.get("/knowledge", async (c) => {
 app.get("/reviews/today", async (c) => {
   const user = await getDefaultUser();
   return c.json(await getDueReviews(user.id, 50));
+});
+
+app.post("/reviews/:id/start", async (c) => {
+  const user = await getDefaultUser();
+  const session = await startReviewSession(user.id, c.req.param("id"));
+  return c.json(session);
+});
+
+app.get("/sessions/:id", async (c) => {
+  const user = await getDefaultUser();
+  return c.json(await getStudySession(user.id, c.req.param("id")));
 });
 
 const createSessionSchema = z.object({
