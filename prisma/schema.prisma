@@ -78,6 +78,8 @@ enum LearningEventType {
   REVIEW_COMPLETED
   CONCEPT_RECALLED
   CONCEPT_FORGOTTEN
+  EVALUATION_CORRECTED
+  MISTAKE_DIAGNOSIS_CORRECTED
 }
 
 model User {
@@ -88,7 +90,9 @@ model User {
   updatedAt      DateTime        @updatedAt
   learningStates LearningState[]
   attempts       Attempt[]
+  attemptCorrections AttemptCorrection[]
   mistakes       Mistake[]
+  mistakeRevisions MistakeRevision[]
   reviewTasks    ReviewTask[]
   studySessions  StudySession[]
   learningEvents LearningEvent[]
@@ -240,6 +244,7 @@ model Attempt {
   question    Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
   session     StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   mistakes    Mistake[]
+  corrections AttemptCorrection[]
 
   @@index([userId, submittedAt])
   @@index([questionId])
@@ -260,8 +265,45 @@ model Mistake {
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempt       Attempt?      @relation(fields: [attemptId], references: [id], onDelete: SetNull)
   concept       Concept       @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  revisions     MistakeRevision[]
 
   @@index([userId, conceptId, status])
+}
+
+model AttemptCorrection {
+  id             String        @id @default(cuid())
+  userId         String
+  attemptId      String
+  correctness    Float
+  reasoning      Float
+  independence   Float
+  errorType      ErrorType
+  misconceptions Json
+  feedback       String        @db.Text
+  note           String?       @db.Text
+  score          Float
+  result         AttemptResult
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt        Attempt       @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model MistakeRevision {
+  id        String   @id @default(cuid())
+  userId    String
+  mistakeId String
+  before    Json
+  after     Json
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mistake   Mistake  @relation(fields: [mistakeId], references: [id], onDelete: Cascade)
+
+  @@index([mistakeId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model ReviewTask {
