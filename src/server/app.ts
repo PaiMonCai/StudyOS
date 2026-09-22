@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { SessionMode } from "@/generated/prisma/enums";
 import { runStudyAgent } from "@/server/agent/study-agent";
+import { getConceptDetail } from "@/server/services/learning-service";
 import { getDefaultUser } from "@/server/db";
 import { env } from "@/server/env";
 import {
@@ -81,6 +82,11 @@ app.get("/knowledge", async (c) => {
   return c.json(await getKnowledgeTree(user.id));
 });
 
+app.get("/concepts/:id", async (c) => {
+  const user = await getDefaultUser();
+  return c.json(await getConceptDetail(user.id, c.req.param("id")));
+});
+
 app.get("/reviews/today", async (c) => {
   const user = await getDefaultUser();
   return c.json(await getDueReviews(user.id, 50));
@@ -129,6 +135,7 @@ app.post("/sessions/:id/finish", async (c) => {
 const createSessionSchema = z.object({
   subjectId: z.string().optional(),
   topicId: z.string().optional(),
+  conceptId: z.string().optional(),
   goal: z.string().max(1000).optional(),
   mode: z
     .enum(["LEARN", "REVIEW", "QUIZ", "FREE_CHAT"])
@@ -155,6 +162,7 @@ app.post("/sessions", async (c) => {
     userId: user.id,
     subjectId: parsed.data.subjectId,
     topicId: parsed.data.topicId,
+    conceptId: parsed.data.conceptId,
     goal: parsed.data.goal,
     mode: parsed.data.mode as SessionMode,
   });
