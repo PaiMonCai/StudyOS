@@ -1,7 +1,7 @@
 # StudyOS Current Status
 
 > Snapshot date: **2026-09-22**  
-> Verified through CI run: **35713621345** on `main@e22ccb039b7129bbe3f03d613cd29b9c41f7677f`
+> Verified through CI run: **35714094109** on `main@0cf6a75c46afd5d9cd896c6926b2a65679979806`
 
 本文件只描述“当前真实状态”。未来计划请看 [ROADMAP.md](./ROADMAP.md)。
 
@@ -276,7 +276,14 @@ restore session context
    - ownership
    - reuse existing open review session
 
-覆盖数量仍远低于 Phase 1 的 30 个核心 integration cases 目标。
+当前已有：
+
+- 32 个 API contract integration cases；
+- learning transaction integration；
+- review/session lifecycle integration；
+- correction / reprojection integration。
+
+因此 Phase 1 的 **30+ core service/API integration cases** 数量门槛已达到。
 
 ### CI
 
