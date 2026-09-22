@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
 type Message = {
@@ -10,22 +10,68 @@ type Message = {
 
 type Session = {
   id: string;
+  mode: "LEARN" | "REVIEW" | "QUIZ" | "FREE_CHAT";
+  goal: string | null;
+  concept: {
+    id: string;
+    name: string;
+    topic: {
+      name: string;
+      subject: {
+        name: string;
+      };
+    };
+  } | null;
+  reviewTask: {
+    id: string;
+    source: string;
+    priority: number;
+    scheduledAt: string;
+  } | null;
 };
 
 export default function StudyPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [hydrating, setHydrating] = useState(true);
   const [goal, setGoal] = useState("帮我诊断一个目前薄弱的知识点，并用一道题确认理解。");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("sessionId");
+
+    if (!id) {
+      setHydrating(false);
+      return;
+    }
+
+    setBusy(true);
+
+    api<Session>(`/api/sessions/${encodeURIComponent(id)}`)
+      .then((loaded) => {
+        setSessionId(loaded.id);
+        setSession(loaded);
+
+        if (loaded.mode === "REVIEW" && loaded.concept) {
+          setInput("开始复习");
+        }
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => {
+        setBusy(false);
+        setHydrating(false);
+      });
+  }, []);
+
   async function startSession() {
     setBusy(true);
     setError("");
 
     try {
-      const session = await api<Session>("/api/sessions", {
+      const created = await api<Session>("/api/sessions", {
         method: "POST",
         body: JSON.stringify({
           goal,
@@ -33,8 +79,14 @@ export default function StudyPage() {
         }),
       });
 
-      setSessionId(session.id);
+      setSessionId(created.id);
+      setSession(created);
       setMessages([]);
+      window.history.replaceState(
+        null,
+        "",
+        `/study?sessionId=${encodeURIComponent(created.id)}`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start session");
     } finally {
@@ -77,13 +129,21 @@ export default function StudyPage() {
     }
   }
 
+  if (hydrating) {
+    return (
+      <div className="rounded-3xl border border-zinc-200 bg-white p-10 text-sm text-zinc-500 shadow-sm">
+        正在恢复 Study Session…
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <header>
         <p className="text-sm font-medium text-zinc-500">Study session</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Study Agent</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-          先创建 Session。之后你可以直接说“讲讲期望效用”“今天该复习什么”或回答 Agent 提出的问题。
+          Session 会保存长期学习上下文的引用。刷新页面仍能恢复当前 Session 与绑定知识点，但 V0.1 暂时不会恢复聊天 transcript。
         </p>
       </header>
 
@@ -106,8 +166,30 @@ export default function StudyPage() {
         </section>
       ) : (
         <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
-          <div className="border-b border-zinc-100 px-5 py-3 text-xs text-zinc-500">
-            Session {sessionId}
+          <div className="border-b border-zinc-100 px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                  {session?.mode ?? "LEARN"} · Session
+                </div>
+                <div className="mt-1 text-sm font-medium text-zinc-700">
+                  {session?.concept
+                    ? session.concept.name
+                    : session?.goal || "Open study session"}
+                </div>
+                {session?.concept ? (
+                  <div className="mt-1 text-xs text-zinc-500">
+                    {session.concept.topic.subject.name} · {session.concept.topic.name}
+                  </div>
+                ) : null}
+              </div>
+
+              {session?.reviewTask ? (
+                <div className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                  Due review · priority {session.reviewTask.priority}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="min-h-[420px] space-y-4 p-5">
@@ -126,7 +208,9 @@ export default function StudyPage() {
               ))
             ) : (
               <div className="py-16 text-center text-sm text-zinc-400">
-                Session 已创建。发送第一条消息开始学习。
+                {session?.mode === "REVIEW" && session.concept
+                  ? `这是「${session.concept.name}」的复习 Session。发送“开始复习”，StudyOS 会先读取当前学习状态再决定诊断方式。`
+                  : "Session 已创建。发送第一条消息开始学习。"}
               </div>
             )}
 
@@ -142,7 +226,11 @@ export default function StudyPage() {
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="例如：我总是分不清期望效用和期望值的效用。"
+                placeholder={
+                  session?.mode === "REVIEW"
+                    ? "发送“开始复习”，或直接回答 StudyOS 的问题。"
+                    : "例如：我总是分不清期望效用和期望值的效用。"
+                }
                 className="min-h-12 flex-1 resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm outline-none focus:border-zinc-400"
               />
               <button
