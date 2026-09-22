@@ -12,6 +12,7 @@ import {
 import { logger } from "@/server/logger";
 import {
   createStudySession,
+  finishStudySession,
   getDashboard,
   getDueReviews,
   getKnowledgeTree,
@@ -94,6 +95,35 @@ app.post("/reviews/:id/start", async (c) => {
 app.get("/sessions/:id", async (c) => {
   const user = await getDefaultUser();
   return c.json(await getStudySession(user.id, c.req.param("id")));
+});
+
+const finishSessionSchema = z.object({
+  summary: z.string().min(1).max(2000).optional(),
+});
+
+app.post("/sessions/:id/finish", async (c) => {
+  const parsed = finishSessionSchema.safeParse(await readJson(c));
+
+  if (!parsed.success) {
+    return c.json(
+      errorBody({
+        code: "INVALID_REQUEST",
+        message: "Invalid session finish request.",
+        requestId: c.get("requestId"),
+        details: parsed.error.flatten(),
+      }),
+      400,
+    );
+  }
+
+  const user = await getDefaultUser();
+  const session = await finishStudySession({
+    userId: user.id,
+    sessionId: c.req.param("id"),
+    summary: parsed.data.summary,
+  });
+
+  return c.json(session);
 });
 
 const createSessionSchema = z.object({
