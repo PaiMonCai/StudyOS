@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, percent } from "@/lib/api";
 
 type Message = {
   role: "user" | "assistant";
@@ -25,6 +25,11 @@ type Session = {
   summary: string | null;
   endedAt: string | null;
   stats?: SessionStats;
+  learningState: {
+    mastery: number;
+    confidence: number;
+    nextReviewAt: string | null;
+  } | null;
   concept: {
     id: string;
     name: string;
@@ -39,7 +44,10 @@ type Session = {
     id: string;
     source: string;
     priority: number;
+    status: string;
     scheduledAt: string;
+    completedAt: string | null;
+    intervalDays: number;
   } | null;
 };
 
@@ -331,6 +339,27 @@ function SessionSummary({ session }: { session: Session }) {
           <SummaryMetric label="正确" value={String(stats.correctCount)} />
           <SummaryMetric label="部分正确" value={String(stats.partialCount)} />
           <SummaryMetric label="错误诊断" value={String(stats.mistakeCount)} />
+        </div>
+      ) : null}
+
+      {session.mode === "REVIEW" && session.reviewTask ? (
+        <div
+          className={
+            session.reviewTask.status === "COMPLETED"
+              ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+              : "rounded-2xl border border-amber-200 bg-amber-50 p-4"
+          }
+        >
+          <div className="text-sm font-semibold">
+            {session.reviewTask.status === "COMPLETED"
+              ? "这次 Review 已完成"
+              : "这次 Review 尚未完成"}
+          </div>
+          <div className="mt-2 text-sm leading-6 text-zinc-700">
+            {session.reviewTask.status === "COMPLETED"
+              ? `系统已记录本次练习并关闭旧 ReviewTask。当前 mastery ${session.learningState ? percent(session.learningState.mastery) : "—"}；下次复习 ${session.learningState?.nextReviewAt ? new Date(session.learningState.nextReviewAt).toLocaleString() : "尚未安排"}。`
+              : "本 Session 没有产生能完成该 ReviewTask 的可评分作答。任务仍保留在复习队列中。"}
+          </div>
         </div>
       ) : null}
 
