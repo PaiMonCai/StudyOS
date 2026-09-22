@@ -183,8 +183,18 @@ export async function getMistakeDetail(
           },
         },
       },
+      revisions: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
       attempt: {
         include: {
+          corrections: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
           question: true,
           session: {
             select: {
@@ -302,6 +312,11 @@ export async function getConceptDetail(
           },
         },
         mistakes: true,
+        corrections: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
       orderBy: {
         submittedAt: "desc",
@@ -360,13 +375,18 @@ export async function getConceptDetail(
   );
 
   const masteryHistory = events
-    .filter((event) => event.type === LearningEventType.QUESTION_ANSWERED)
+    .filter(
+      (event) =>
+        event.type === LearningEventType.QUESTION_ANSWERED ||
+        event.type === LearningEventType.EVALUATION_CORRECTED,
+    )
     .map((event) => {
       const oldMastery = metadataNumber(event.metadata, "oldMastery");
       const newMastery = metadataNumber(event.metadata, "newMastery");
 
       return {
         eventId: event.id,
+        type: event.type,
         createdAt: event.createdAt,
         score: event.score,
         oldMastery,
