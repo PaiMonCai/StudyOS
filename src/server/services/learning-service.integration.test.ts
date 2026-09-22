@@ -2,6 +2,10 @@ import { afterAll, describe, expect, it } from "vitest";
 import { ErrorType, MistakeStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 import {
+  correctAttemptEvaluation,
+  correctMistakeDiagnosis,
+} from "@/server/services/correction-service";
+import {
   createAgentQuestion,
   getConceptDetail,
   getMistakeDetail,
@@ -277,5 +281,101 @@ describe("learning service integration", () => {
     expect(attemptAfterWorkflow.evaluation).toEqual(
       attemptBeforeResolve.evaluation,
     );
+
+    const correctionResult = await correctAttemptEvaluation({
+      userId: user.id,
+      attemptId: result.attempt.id,
+      evaluation: {
+        correctness: 1,
+        reasoning: 1,
+        independence: 1,
+        errorType: ErrorType.NONE,
+        misconceptions: [],
+        feedback: "The learner's answer should be treated as fully correct.",
+      },
+      note: "User corrected the automated evaluation.",
+    });
+
+    expect(correctionResult.oldMastery).toBeCloseTo(result.newMastery);
+    expect(correctionResult.newMastery).toBeCloseTo(0.55);
+    expect(correctionResult.correctedScore).toBeCloseTo(1);
+    expect(correctionResult.correctedResult).toBe("CORRECT");
+    expect(correctionResult.state.correctCount).toBe(1);
+    expect(correctionResult.state.attemptCount).toBe(1);
+    expect(correctionResult.replacementReview?.source).toBe("MANUAL");
+
+    const originalAttemptAfterCorrection =
+      await prisma.attempt.findUniqueOrThrow({
+        where: { id: result.attempt.id },
+      });
+
+    expect(originalAttemptAfterCorrection.score).toBe(attemptBeforeResolve.score);
+    expect(originalAttemptAfterCorrection.result).toBe(
+      attemptBeforeResolve.result,
+    );
+    expect(originalAttemptAfterCorrection.evaluation).toEqual(
+      attemptBeforeResolve.evaluation,
+    );
+
+    const corrections = await prisma.attemptCorrection.findMany({
+      where: {
+        attemptId: result.attempt.id,
+      },
+    });
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]?.score).toBeCloseTo(1);
+
+    const stateBeforeDiagnosisCorrection =
+      await prisma.learningState.findUniqueOrThrow({
+        where: {
+          userId_conceptId: {
+            userId: user.id,
+            conceptId: concept.id,
+          },
+        },
+      });
+
+    const diagnosisResult = await correctMistakeDiagnosis({
+      userId: user.id,
+      mistakeId: mistakeId!,
+      errorType: ErrorType.MEMORY,
+      misconception: "The learner reports this was recall, not concept confusion.",
+      diagnosis: "Treat as a memory retrieval miss.",
+      note: "User corrected the mistake diagnosis.",
+    });
+
+    expect(diagnosisResult.mistake.errorType).toBe(ErrorType.MEMORY);
+    expect(diagnosisResult.revision.id).toBeTruthy();
+
+    const [stateAfterDiagnosisCorrection, correctionEvents, detailAfterCorrection] =
+      await Promise.all([
+        prisma.learningState.findUniqueOrThrow({
+          where: {
+            userId_conceptId: {
+              userId: user.id,
+              conceptId: concept.id,
+            },
+          },
+        }),
+        prisma.learningEvent.findMany({
+          where: {
+            userId: user.id,
+            conceptId: concept.id,
+            type: {
+              in: ["EVALUATION_CORRECTED", "MISTAKE_DIAGNOSIS_CORRECTED"],
+            },
+          },
+        }),
+        getConceptDetail(user.id, concept.id),
+      ]);
+
+    expect(stateAfterDiagnosisCorrection.mastery).toBe(
+      stateBeforeDiagnosisCorrection.mastery,
+    );
+    expect(correctionEvents).toHaveLength(2);
+    expect(detailAfterCorrection.masteryHistory[0]?.type).toBe(
+      "EVALUATION_CORRECTED",
+    );
+    expect(detailAfterCorrection.attempts[0]?.corrections).toHaveLength(1);
   });
 });
