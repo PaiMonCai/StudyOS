@@ -254,7 +254,8 @@ export async function recordCurrentAttempt(input: {
   );
 
   const intervalDays = masteryToReviewIntervalDays(mastery, score);
-  const scheduledAt = addDays(new Date(), intervalDays);
+  const now = new Date();
+  const scheduledAt = addDays(now, intervalDays);
   const priority = reviewPriority(mastery, score);
   const result = attemptResult(score);
 
@@ -262,6 +263,47 @@ export async function recordCurrentAttempt(input: {
     input.evaluation.errorType !== ErrorType.NONE || score < 0.6;
 
   return prisma.$transaction(async (tx) => {
+    const dueReviews = await tx.reviewTask.findMany({
+      where: {
+        userId: input.userId,
+        conceptId: currentQuestion.conceptId,
+        status: "PENDING",
+        scheduledAt: {
+          lte: now,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (dueReviews.length > 0) {
+      await tx.reviewTask.updateMany({
+        where: {
+          id: {
+            in: dueReviews.map((review) => review.id),
+          },
+        },
+        data: {
+          status: "COMPLETED",
+          completedAt: now,
+        },
+      });
+
+      await tx.learningEvent.create({
+        data: {
+          userId: input.userId,
+          conceptId: currentQuestion.conceptId,
+          sessionId: input.sessionId,
+          type: LearningEventType.REVIEW_COMPLETED,
+          score,
+          metadata: {
+            completedReviewTaskIds: dueReviews.map((review) => review.id),
+          },
+        },
+      });
+    }
+
     const attempt = await tx.attempt.create({
       data: {
         userId: input.userId,
@@ -287,7 +329,9 @@ export async function recordCurrentAttempt(input: {
         attemptCount: { increment: 1 },
         correctCount:
           result === "CORRECT" ? { increment: 1 } : undefined,
-        lastStudiedAt: new Date(),
+        lastStudiedAt: now,
+        lastReviewedAt:
+          dueReviews.length > 0 ? now : oldState?.lastReviewedAt,
         nextReviewAt: scheduledAt,
       },
       create: {
@@ -297,7 +341,8 @@ export async function recordCurrentAttempt(input: {
         confidence,
         attemptCount: 1,
         correctCount: result === "CORRECT" ? 1 : 0,
-        lastStudiedAt: new Date(),
+        lastStudiedAt: now,
+        lastReviewedAt: dueReviews.length > 0 ? now : null,
         nextReviewAt: scheduledAt,
       },
     });
@@ -390,6 +435,7 @@ export async function recordCurrentAttempt(input: {
       state,
       mistake,
       review,
+      completedReviewCount: dueReviews.length,
       oldMastery,
       newMastery: mastery,
     };
