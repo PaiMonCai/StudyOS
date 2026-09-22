@@ -16,6 +16,121 @@ const sessionContextInclude = {
   reviewTask: true,
 } as const;
 
+type SessionStats = {
+  attemptCount: number;
+  correctCount: number;
+  partialCount: number;
+  incorrectCount: number;
+  mistakeCount: number;
+  concepts: string[];
+  masteryDelta: number;
+};
+
+function readMetadataNumber(metadata: unknown, key: string) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "number" ? value : null;
+}
+
+async function getSessionStats(
+  userId: string,
+  sessionId: string,
+): Promise<SessionStats> {
+  const attempts = await prisma.attempt.findMany({
+    where: {
+      userId,
+      sessionId,
+    },
+    include: {
+      question: {
+        include: {
+          concept: true,
+        },
+      },
+    },
+    orderBy: {
+      submittedAt: "asc",
+    },
+  });
+
+  const attemptIds = attempts.map((attempt) => attempt.id);
+
+  const [mistakeCount, answerEvents] = await Promise.all([
+    attemptIds.length
+      ? prisma.mistake.count({
+          where: {
+            userId,
+            attemptId: {
+              in: attemptIds,
+            },
+          },
+        })
+      : Promise.resolve(0),
+    prisma.learningEvent.findMany({
+      where: {
+        userId,
+        sessionId,
+        type: "QUESTION_ANSWERED",
+      },
+      select: {
+        metadata: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    }),
+  ]);
+
+  const concepts = Array.from(
+    new Set(attempts.map((attempt) => attempt.question.concept.name)),
+  );
+
+  const masteryDelta = answerEvents.reduce((sum, event) => {
+    const oldMastery = readMetadataNumber(event.metadata, "oldMastery");
+    const newMastery = readMetadataNumber(event.metadata, "newMastery");
+
+    if (oldMastery === null || newMastery === null) {
+      return sum;
+    }
+
+    return sum + (newMastery - oldMastery);
+  }, 0);
+
+  return {
+    attemptCount: attempts.length,
+    correctCount: attempts.filter((attempt) => attempt.result === "CORRECT").length,
+    partialCount: attempts.filter((attempt) => attempt.result === "PARTIAL").length,
+    incorrectCount: attempts.filter((attempt) => attempt.result === "INCORRECT").length,
+    mistakeCount,
+    concepts,
+    masteryDelta,
+  };
+}
+
+function buildDeterministicSummary(stats: SessionStats) {
+  if (stats.attemptCount === 0) {
+    return "本次 Session 已结束，尚未记录可评分作答。";
+  }
+
+  const conceptText =
+    stats.concepts.length > 0 ? stats.concepts.join("、") : "未标记知识点";
+  const masteryPoints = Math.round(stats.masteryDelta * 100);
+  const masteryText =
+    masteryPoints === 0
+      ? "本次记录的掌握度没有净变化"
+      : `本次记录的掌握度累计变化 ${masteryPoints > 0 ? "+" : ""}${masteryPoints} 个百分点`;
+
+  return [
+    `本次完成 ${stats.attemptCount} 次可评分作答（正确 ${stats.correctCount}、部分正确 ${stats.partialCount}、错误 ${stats.incorrectCount}）。`,
+    `记录 ${stats.mistakeCount} 个错误诊断。`,
+    `练习知识点：${conceptText}。`,
+    `${masteryText}。`,
+  ].join("");
+}
+
 export async function createStudySession(input: {
   userId: string;
   subjectId?: string;
@@ -52,7 +167,10 @@ export async function getStudySession(userId: string, sessionId: string) {
     throw new Error("SESSION_NOT_FOUND");
   }
 
-  return session;
+  return {
+    ...session,
+    stats: await getSessionStats(userId, sessionId),
+  };
 }
 
 export async function startReviewSession(
@@ -115,7 +233,7 @@ export async function startReviewSession(
 export async function finishStudySession(input: {
   userId: string;
   sessionId: string;
-  summary: string;
+  summary?: string;
 }) {
   const session = await prisma.studySession.findFirst({
     where: {
@@ -128,14 +246,24 @@ export async function finishStudySession(input: {
     throw new Error("SESSION_NOT_FOUND");
   }
 
-  return prisma.studySession.update({
+  if (session.endedAt) {
+    return getStudySession(input.userId, input.sessionId);
+  }
+
+  const stats = await getSessionStats(input.userId, input.sessionId);
+  const summary =
+    input.summary?.trim() || buildDeterministicSummary(stats);
+
+  await prisma.studySession.update({
     where: { id: input.sessionId },
     data: {
-      summary: input.summary,
-      endedAt: session.endedAt ?? new Date(),
+      summary,
+      endedAt: new Date(),
       currentQuestionId: null,
     },
   });
+
+  return getStudySession(input.userId, input.sessionId);
 }
 
 export async function searchConcepts(query: string, limit = 8) {
