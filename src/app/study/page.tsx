@@ -194,8 +194,9 @@ export default function StudyPage() {
 
       {!sessionId ? (
         <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <label className="text-sm font-medium">本次目标</label>
+          <label htmlFor="study-goal" className="text-sm font-medium">本次目标</label>
           <textarea
+            id="study-goal"
             value={goal}
             onChange={(event) => setGoal(event.target.value)}
             className="mt-3 min-h-28 w-full rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-6 outline-none transition focus:border-zinc-400"
