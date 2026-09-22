@@ -14,7 +14,9 @@
 User
 ├── LearningState
 ├── Attempt
+│   └── AttemptCorrection
 ├── Mistake
+│   └── MistakeRevision
 ├── ReviewTask
 ├── StudySession
 └── LearningEvent
@@ -26,7 +28,9 @@ Subject
         ├── LearningState
         ├── Question
         │   └── Attempt
+        │       ├── AttemptCorrection
         │       └── Mistake
+        │           └── MistakeRevision
         ├── ReviewTask
         │   └── StudySession
         ├── StudySession
@@ -115,7 +119,49 @@ Question 必须先存在，才允许把回答作为 mastery evidence。
 - result；
 - structured evaluation。
 
-Attempt 是事实记录，不应因为后来算法变化被覆盖。
+Attempt 是事实记录，不应因为后来算法变化或用户纠正被覆盖。
+
+### AttemptCorrection
+
+表示用户对 Agent 评分的追加式纠正。
+
+保存：
+
+- correctness；
+- reasoning；
+- independence；
+- errorType；
+- misconceptions；
+- feedback；
+- correction note；
+- 由上述证据确定性计算出的 score / result。
+
+核心规则：
+
+> **Correction 不能覆盖 Attempt。**
+
+有效评价定义为：
+
+```text
+latest AttemptCorrection
+        ↓ if none
+original Attempt.evaluation
+```
+
+纠正后，StudyOS 会根据历史 QUESTION_ANSWERED evidence 找回该 concept 的投影基线，并按时间顺序重放所有 Attempt 的“有效评价”，重新计算当前 LearningState。
+
+已到期 ReviewTask 不会因为 correction 被自动完成；未来尚未到期的 pending Review 会按新 projection 重新安排。
+
+### MistakeRevision
+
+Mistake 是当前诊断 projection；MistakeRevision 保存诊断修订的 before / after 快照与 note。
+
+诊断修订：
+
+- 可以改变 errorType / misconception / diagnosis；
+- 不改变原 Attempt；
+- 不改变 mastery；
+- 写入 MISTAKE_DIAGNOSIS_CORRECTED LearningEvent。
 
 ### LearningEvent
 
@@ -134,6 +180,8 @@ Attempt 是事实记录，不应因为后来算法变化被覆盖。
 - REVIEW_COMPLETED
 - CONCEPT_RECALLED
 - CONCEPT_FORGOTTEN
+- EVALUATION_CORRECTED
+- MISTAKE_DIAGNOSIS_CORRECTED
 
 ### Invariant
 
@@ -313,6 +361,33 @@ ReviewTask 只有在对应 concept 的 practice 被记录后，才会：
 
 任何会影响 mastery 的回答必须绑定 Question。
 
+### Correction is append-only
+
+禁止直接覆盖：
+
+- Attempt.evaluation；
+- Attempt.score；
+- Attempt.result。
+
+评分纠正必须：
+
+```text
+Attempt
+→ AttemptCorrection
+→ deterministic replay
+→ LearningState projection
+→ EVALUATION_CORRECTED event
+```
+
+Mistake diagnosis 修订必须：
+
+```text
+Mistake current projection
+→ MistakeRevision(before/after)
+→ update current diagnosis
+→ MISTAKE_DIAGNOSIS_CORRECTED event
+```
+
 ### Mastery via Learning Service
 
 禁止：
@@ -358,7 +433,6 @@ ReviewTask 只有在对应 concept 的 practice 被记录后，才会：
 - Source / Document；
 - Note；
 - mastery algorithm version；
-- evaluation correction；
 - user preference；
 - audit record；
 - deployment / billing。
