@@ -9,6 +9,7 @@ import {
   finishStudySession,
   getStudySession,
   listReviewTasks,
+  listStudySessions,
   startReviewSession,
 } from "@/server/services/study-service";
 
@@ -196,5 +197,16 @@ describe("study service review-session integration", () => {
           item.scheduledAt.getTime() > Date.now(),
       ),
     ).toBe(true);
+
+    const sessionHistory = await listStudySessions(user.id, 20);
+    const historyItem = sessionHistory.find((item) => item.id === first.id);
+
+    expect(historyItem).toBeTruthy();
+    expect(historyItem?.endedAt).not.toBeNull();
+    expect(historyItem?.summary).toContain("1 次可评分作答");
+    expect(historyItem?.concept?.id).toBe(concept.id);
+    expect(historyItem?.reviewTask?.id).toBe(reviewTask.id);
+    expect(historyItem?._count.attempts).toBe(1);
+    expect(historyItem?._count.learningEvents).toBeGreaterThanOrEqual(4);
   });
 });
