@@ -68,8 +68,8 @@ export default function StudyPage() {
         setSessionId(loaded.id);
         setSession(loaded);
 
-        if (!loaded.endedAt && loaded.mode === "REVIEW" && loaded.concept) {
-          setInput("开始复习");
+        if (!loaded.endedAt && loaded.concept) {
+          setInput(loaded.mode === "REVIEW" ? "开始复习" : "开始学习这个知识点");
         }
       })
       .catch((err) => setError(err.message))
