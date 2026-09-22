@@ -38,6 +38,24 @@ Agent 不拥有：
 
 ### Read tools
 
+#### get_session_context
+
+读取当前 StudySession 的结构化上下文：
+
+- goal；
+- mode；
+- bound concept；
+- bound ReviewTask；
+- subject / topic。
+
+以下情况优先使用：
+
+- 用户只说“开始 / 继续 / 开始复习”，没有重新点名知识点；
+- 当前 Session 可能由 Reviews 页面创建；
+- Agent 需要确认这次会话的默认学习目标。
+
+如果 Session 已绑定 Review concept，除非用户明确切换主题，否则该 concept 应作为默认目标。
+
 #### search_concepts
 
 用途：
