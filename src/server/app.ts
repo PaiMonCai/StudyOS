@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { MistakeStatus, SessionMode } from "@/generated/prisma/enums";
+import { ErrorType, MistakeStatus, SessionMode } from "@/generated/prisma/enums";
 import { runStudyAgent } from "@/server/agent/study-agent";
 import {
   getConceptDetail,
@@ -8,6 +8,10 @@ import {
   listMistakes,
   setMistakeStatus,
 } from "@/server/services/learning-service";
+import {
+  correctAttemptEvaluation,
+  correctMistakeDiagnosis,
+} from "@/server/services/correction-service";
 import { getDefaultUser } from "@/server/db";
 import { env } from "@/server/env";
 import {
@@ -144,6 +148,94 @@ app.post("/mistakes/:id/reopen", async (c) => {
       userId: user.id,
       mistakeId: c.req.param("id"),
       status: MistakeStatus.OPEN,
+    }),
+  );
+});
+
+const correctionErrorTypeSchema = z.enum([
+  "NONE",
+  "CONCEPTUAL",
+  "CALCULATION",
+  "REASONING",
+  "MEMORY",
+  "CONDITION",
+  "MISREAD",
+  "CARELESS",
+  "UNKNOWN",
+]);
+
+const attemptCorrectionSchema = z.object({
+  correctness: z.number().min(0).max(1),
+  reasoning: z.number().min(0).max(1),
+  independence: z.number().min(0).max(1),
+  errorType: correctionErrorTypeSchema,
+  misconceptions: z.array(z.string().min(1).max(500)).max(6).default([]),
+  feedback: z.string().min(1).max(4000),
+  note: z.string().max(2000).optional(),
+});
+
+app.post("/attempts/:id/corrections", async (c) => {
+  const parsed = attemptCorrectionSchema.safeParse(await readJson(c));
+
+  if (!parsed.success) {
+    return c.json(
+      errorBody({
+        code: "INVALID_REQUEST",
+        message: "Invalid attempt correction.",
+        requestId: c.get("requestId"),
+        details: parsed.error.flatten(),
+      }),
+      400,
+    );
+  }
+
+  const user = await getDefaultUser();
+
+  return c.json(
+    await correctAttemptEvaluation({
+      userId: user.id,
+      attemptId: c.req.param("id"),
+      evaluation: {
+        ...parsed.data,
+        errorType: parsed.data.errorType as ErrorType,
+      },
+      note: parsed.data.note,
+    }),
+  );
+});
+
+const mistakeCorrectionSchema = z.object({
+  errorType: correctionErrorTypeSchema,
+  misconception: z.string().max(2000).optional(),
+  diagnosis: z.string().max(4000).optional(),
+  note: z.string().max(2000).optional(),
+});
+
+app.post("/mistakes/:id/corrections", async (c) => {
+  const parsed = mistakeCorrectionSchema.safeParse(await readJson(c));
+
+  if (!parsed.success) {
+    return c.json(
+      errorBody({
+        code: "INVALID_REQUEST",
+        message: "Invalid mistake diagnosis correction.",
+        requestId: c.get("requestId"),
+        details: parsed.error.flatten(),
+      }),
+      400,
+    );
+  }
+
+  const user = await getDefaultUser();
+
+  return c.json(
+    await correctMistakeDiagnosis({
+      userId: user.id,
+      mistakeId: c.req.param("id"),
+      errorType: parsed.data.errorType as ErrorType,
+      misconception: parsed.data.misconception,
+      diagnosis: parsed.data.diagnosis,
+      note: parsed.data.note,
     }),
   );
 });
