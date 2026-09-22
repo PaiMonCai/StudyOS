@@ -1,10 +1,27 @@
 import { SessionMode } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 
+const sessionContextInclude = {
+  subject: true,
+  topic: true,
+  concept: {
+    include: {
+      topic: {
+        include: {
+          subject: true,
+        },
+      },
+    },
+  },
+  reviewTask: true,
+} as const;
+
 export async function createStudySession(input: {
   userId: string;
   subjectId?: string;
   topicId?: string;
+  conceptId?: string;
+  reviewTaskId?: string;
   goal?: string;
   mode?: SessionMode;
 }) {
@@ -13,9 +30,85 @@ export async function createStudySession(input: {
       userId: input.userId,
       subjectId: input.subjectId,
       topicId: input.topicId,
+      conceptId: input.conceptId,
+      reviewTaskId: input.reviewTaskId,
       goal: input.goal,
       mode: input.mode ?? SessionMode.LEARN,
     },
+    include: sessionContextInclude,
+  });
+}
+
+export async function getStudySession(userId: string, sessionId: string) {
+  const session = await prisma.studySession.findFirst({
+    where: {
+      id: sessionId,
+      userId,
+    },
+    include: sessionContextInclude,
+  });
+
+  if (!session) {
+    throw new Error("SESSION_NOT_FOUND");
+  }
+
+  return session;
+}
+
+export async function startReviewSession(
+  userId: string,
+  reviewTaskId: string,
+) {
+  const reviewTask = await prisma.reviewTask.findFirst({
+    where: {
+      id: reviewTaskId,
+      userId,
+      status: "PENDING",
+      scheduledAt: {
+        lte: new Date(),
+      },
+    },
+    include: {
+      concept: {
+        include: {
+          topic: {
+            include: {
+              subject: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!reviewTask) {
+    throw new Error("REVIEW_TASK_NOT_FOUND");
+  }
+
+  const existing = await prisma.studySession.findFirst({
+    where: {
+      userId,
+      reviewTaskId,
+      endedAt: null,
+    },
+    include: sessionContextInclude,
+    orderBy: {
+      startedAt: "desc",
+    },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  return createStudySession({
+    userId,
+    subjectId: reviewTask.concept.topic.subjectId,
+    topicId: reviewTask.concept.topicId,
+    conceptId: reviewTask.conceptId,
+    reviewTaskId: reviewTask.id,
+    goal: `Review ${reviewTask.concept.name}`,
+    mode: SessionMode.REVIEW,
   });
 }
 
@@ -193,6 +286,7 @@ export async function getDashboard(userId: string) {
         include: {
           subject: true,
           topic: true,
+          concept: true,
         },
       }),
       prisma.learningState.aggregate({
