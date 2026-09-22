@@ -8,6 +8,7 @@ import {
 import {
   finishStudySession,
   getStudySession,
+  listReviewTasks,
   startReviewSession,
 } from "@/server/services/study-service";
 
@@ -137,6 +138,9 @@ describe("study service review-session integration", () => {
     expect(finished.stats.correctCount).toBe(1);
     expect(finished.stats.mistakeCount).toBe(0);
     expect(finished.stats.concepts).toContain("Review Concept");
+    expect(finished.reviewTask?.status).toBe("COMPLETED");
+    expect(finished.learningState?.mastery).toBeGreaterThan(0.3);
+    expect(finished.learningState?.nextReviewAt).not.toBeNull();
 
     const finishedAgain = await finishStudySession({
       userId: user.id,
@@ -166,5 +170,31 @@ describe("study service review-session integration", () => {
     expect(reviewAfter.status).toBe("COMPLETED");
     expect(persistedQuestion.id).toBe(question.id);
     expect(openSessionsAfterFinish).toBe(0);
+
+    const [due, upcoming, completed] = await Promise.all([
+      listReviewTasks({
+        userId: user.id,
+        scope: "DUE",
+      }),
+      listReviewTasks({
+        userId: user.id,
+        scope: "UPCOMING",
+      }),
+      listReviewTasks({
+        userId: user.id,
+        scope: "COMPLETED",
+      }),
+    ]);
+
+    expect(due.some((item) => item.id === reviewTask.id)).toBe(false);
+    expect(completed.some((item) => item.id === reviewTask.id)).toBe(true);
+    expect(
+      upcoming.some(
+        (item) =>
+          item.conceptId === concept.id &&
+          item.status === "PENDING" &&
+          item.scheduledAt.getTime() > Date.now(),
+      ),
+    ).toBe(true);
   });
 });
