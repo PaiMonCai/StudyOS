@@ -1,0 +1,293 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum ConceptStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum RelationType {
+  PREREQUISITE
+  RELATED
+}
+
+enum SessionMode {
+  LEARN
+  REVIEW
+  QUIZ
+  FREE_CHAT
+}
+
+enum QuestionType {
+  CONCEPT
+  CALCULATION
+  DERIVATION
+  COMPARISON
+  APPLICATION
+}
+
+enum AttemptResult {
+  CORRECT
+  PARTIAL
+  INCORRECT
+}
+
+enum ErrorType {
+  NONE
+  CONCEPTUAL
+  CALCULATION
+  REASONING
+  MEMORY
+  CONDITION
+  MISREAD
+  CARELESS
+  UNKNOWN
+}
+
+enum MistakeStatus {
+  OPEN
+  RESOLVED
+}
+
+enum ReviewStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+}
+
+enum ReviewSource {
+  MISTAKE
+  LOW_MASTERY
+  SCHEDULED_REVIEW
+  MANUAL
+}
+
+enum LearningEventType {
+  CONCEPT_EXPLAINED
+  QUESTION_CREATED
+  QUESTION_ANSWERED
+  HINT_USED
+  MISTAKE_CREATED
+  REVIEW_SCHEDULED
+  REVIEW_COMPLETED
+  CONCEPT_RECALLED
+  CONCEPT_FORGOTTEN
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  learningStates LearningState[]
+  attempts       Attempt[]
+  mistakes       Mistake[]
+  reviewTasks    ReviewTask[]
+  studySessions  StudySession[]
+  learningEvents LearningEvent[]
+}
+
+model Subject {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  description   String?        @db.Text
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  topics        Topic[]
+  studySessions StudySession[]
+}
+
+model Topic {
+  id            String         @id @default(cuid())
+  subjectId     String
+  name          String
+  slug          String
+  description   String?        @db.Text
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subject       Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  concepts      Concept[]
+  studySessions StudySession[]
+
+  @@unique([subjectId, slug])
+  @@index([subjectId, sortOrder])
+}
+
+model Concept {
+  id                String            @id @default(cuid())
+  topicId           String
+  name              String
+  slug              String
+  description       String?           @db.Text
+  difficulty        Int               @default(1)
+  status            ConceptStatus     @default(ACTIVE)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  topic             Topic             @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  outgoingRelations ConceptRelation[] @relation("ConceptFrom")
+  incomingRelations ConceptRelation[] @relation("ConceptTo")
+  learningStates    LearningState[]
+  questions         Question[]
+  mistakes          Mistake[]
+  reviewTasks       ReviewTask[]
+  learningEvents    LearningEvent[]
+
+  @@unique([topicId, slug])
+  @@index([topicId, status])
+}
+
+model ConceptRelation {
+  id            String       @id @default(cuid())
+  fromConceptId String
+  toConceptId   String
+  relationType  RelationType
+  strength      Float        @default(1)
+  createdAt     DateTime     @default(now())
+  fromConcept   Concept      @relation("ConceptFrom", fields: [fromConceptId], references: [id], onDelete: Cascade)
+  toConcept     Concept      @relation("ConceptTo", fields: [toConceptId], references: [id], onDelete: Cascade)
+
+  @@unique([fromConceptId, toConceptId, relationType])
+  @@index([toConceptId, relationType])
+}
+
+model LearningState {
+  id             String   @id @default(cuid())
+  userId         String
+  conceptId      String
+  mastery        Float    @default(0.3)
+  confidence     Float    @default(0.3)
+  attemptCount   Int      @default(0)
+  correctCount   Int      @default(0)
+  lastStudiedAt  DateTime?
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept        Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conceptId])
+  @@index([userId, nextReviewAt])
+  @@index([userId, mastery])
+}
+
+model Question {
+  id             String       @id @default(cuid())
+  conceptId      String
+  type           QuestionType
+  difficulty     Int          @default(1)
+  stem           String       @db.Text
+  answer         String       @db.Text
+  explanation    String?      @db.Text
+  source         String?      @db.VarChar(64)
+  createdAt      DateTime     @default(now())
+  concept        Concept      @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  attempts       Attempt[]
+
+  @@index([conceptId, difficulty])
+}
+
+model StudySession {
+  id                String          @id @default(cuid())
+  userId            String
+  subjectId         String?
+  topicId           String?
+  currentQuestionId String?
+  goal              String?         @db.Text
+  mode              SessionMode     @default(LEARN)
+  summary           String?         @db.Text
+  traceId           String?
+  startedAt         DateTime        @default(now())
+  endedAt           DateTime?
+  createdAt         DateTime        @default(now())
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject           Subject?        @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topic             Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  attempts          Attempt[]
+  learningEvents    LearningEvent[]
+
+  @@index([userId, startedAt])
+}
+
+model Attempt {
+  id          String        @id @default(cuid())
+  userId      String
+  questionId  String
+  sessionId   String?
+  answer      String        @db.Text
+  score       Float
+  result      AttemptResult
+  evaluation  Json
+  startedAt   DateTime?
+  submittedAt DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question    Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  session     StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  mistakes    Mistake[]
+
+  @@index([userId, submittedAt])
+  @@index([questionId])
+}
+
+model Mistake {
+  id            String        @id @default(cuid())
+  userId        String
+  attemptId     String?
+  conceptId     String
+  errorType     ErrorType
+  severity      Float         @default(0.5)
+  misconception String?       @db.Text
+  diagnosis     String?       @db.Text
+  status        MistakeStatus @default(OPEN)
+  createdAt     DateTime      @default(now())
+  resolvedAt    DateTime?
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt       Attempt?      @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+  concept       Concept       @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@index([userId, conceptId, status])
+}
+
+model ReviewTask {
+  id           String       @id @default(cuid())
+  userId       String
+  conceptId    String
+  scheduledAt  DateTime
+  completedAt  DateTime?
+  intervalDays Int
+  priority     Int          @default(50)
+  status       ReviewStatus @default(PENDING)
+  source       ReviewSource
+  createdAt    DateTime     @default(now())
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept      Concept      @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, scheduledAt])
+}
+
+model LearningEvent {
+  id         String            @id @default(cuid())
+  userId     String
+  conceptId  String
+  sessionId  String?
+  type       LearningEventType
+  score      Float?
+  confidence Float?
+  metadata   Json?
+  createdAt  DateTime          @default(now())
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept    Concept           @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  session    StudySession?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, conceptId, createdAt])
+  @@index([sessionId, createdAt])
+}
