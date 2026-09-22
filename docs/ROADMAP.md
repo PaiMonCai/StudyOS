@@ -78,9 +78,9 @@ Choose / due concept
 - [x] 同一 ReviewTask 重复点击复用 open Session
 - [x] Session 有明确 End action
 - [x] Session summary 可查看
-- [ ] Session history detail
-- [ ] Review 完成后的即时 outcome feedback
-- [ ] Review history / next review 展示
+- [x] Session history detail
+- [x] Review 完成后的即时 outcome feedback
+- [x] Review history / next review 展示
 
 ### Concept / Evidence
 
@@ -93,9 +93,9 @@ Choose / due concept
 
 ### Learner correction
 
-- [ ] 用户可纠正错误 evaluation
-- [ ] 用户可纠正 mistake diagnosis
-- [ ] correction 后安全重新投影 LearningState
+- [x] 用户可纠正错误 evaluation
+- [x] 用户可纠正 mistake diagnosis
+- [x] correction 后安全重新投影 LearningState
 
 ### Tests
 
