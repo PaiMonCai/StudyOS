@@ -12,7 +12,7 @@
     "start": "next start",
     "typecheck": "prisma generate && tsc --noEmit",
     "test": "npm run test:unit",
-    "test:unit": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:unit": "vitest run --exclude '**/*.integration.test.ts' --exclude 'e2e/**'",
     "test:integration": "vitest run src/server/services",
     "test:watch": "vitest",
     "db:generate": "prisma generate",
