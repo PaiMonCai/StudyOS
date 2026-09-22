@@ -1,7 +1,7 @@
 # StudyOS Current Status
 
 > Snapshot date: **2026-09-22**  
-> Verified through CI run: **35711612982** on `main@07e29929257351359a40d6909de30b2c3384dfe1`
+> Verified through CI run: **35713621345** on `main@e22ccb039b7129bbe3f03d613cd29b9c41f7677f`
 
 本文件只描述“当前真实状态”。未来计划请看 [ROADMAP.md](./ROADMAP.md)。
 
@@ -39,10 +39,10 @@ fresh checkout
 | Agent Tool contract | ✅ 基础边界建立 |
 | Dashboard | 🟡 Skeleton |
 | Knowledge | 🟡 Concept detail + evidence view implemented |
-| Reviews | 🟡 已可进入绑定 Concept 的 StudySession |
+| Reviews | ✅ Due/Upcoming/Completed + completion outcome |
 | Study Session context | ✅ 可恢复结构化 context |
-| Session End / Summary UX | ✅ 基础完成 |
-| Mistake UX | 🟡 list/detail + resolve/reopen implemented |
+| Session End / Summary UX | ✅ End/Summary/History 基础闭环 |
+| Mistake UX | ✅ list/detail/resolve/reopen/correction 基础闭环 |
 | Concept Detail | ✅ 基础完成 |
 | Persistent conversation transcript | ❌ |
 | Agent eval suite | ❌ |
@@ -79,6 +79,7 @@ fresh checkout
 - `package-lock.json`
 - `prisma/migrations/20260922_initial/migration.sql`
 - `prisma/migrations/20260922_review_session_context/migration.sql`
+- `prisma/migrations/20260922_learner_corrections/migration.sql`
 - `prisma/migrations/migration_lock.toml`
 
 CI 使用：
@@ -302,20 +303,19 @@ restore session context
 - deterministic summary
 - summary view
 - finish idempotency
-
-尚缺：
-
-- session history detail
+- Session history API / page
+- Dashboard recent Session links
 
 ### P1 — Review UX
 
-已完成 Review → bound Session。
+已完成：
 
-仍缺：
-
-- 完成后的即时 UI feedback
-- review outcome summary
-- completed / upcoming review history
+- Review → bound Session
+- Due / Upcoming / Completed 三种视图
+- completed review history
+- Session Summary 中显示 Review 是否真正完成
+- 显示当前 mastery 与 nextReviewAt
+- 未产生可评分作答时明确保持 ReviewTask PENDING
 
 ### P1 — Concept UX
 
@@ -352,11 +352,16 @@ restore session context
 
 ### P1 — User correction
 
-尚缺：
+已完成基础闭环：
 
-- correction of Agent evaluation
-- correction of mistake diagnosis
-- safe state recomputation after correction
+- AttemptCorrection 追加式保存评分纠正
+- 原 Attempt score/result/evaluation 保持不可变
+- correction 后基于历史 QUESTION_ANSWERED evidence 重投影 LearningState
+- 已到期 Review 不会因 correction 被误完成
+- 未来 pending Review 会按新 projection 重新安排
+- MistakeRevision 保存诊断修订审计
+- Mistake diagnosis 修订不改变 mastery
+- correction/revision 写入 LearningEvent audit trail
 
 ### P1 — Conversation persistence
 
