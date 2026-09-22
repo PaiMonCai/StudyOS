@@ -302,6 +302,33 @@ export async function finishStudySession(input: {
   return getStudySession(input.userId, input.sessionId);
 }
 
+export async function listStudySessions(
+  userId: string,
+  limit = 50,
+) {
+  return prisma.studySession.findMany({
+    where: {
+      userId,
+    },
+    include: {
+      subject: true,
+      topic: true,
+      concept: true,
+      reviewTask: true,
+      _count: {
+        select: {
+          attempts: true,
+          learningEvents: true,
+        },
+      },
+    },
+    orderBy: {
+      startedAt: "desc",
+    },
+    take: Math.max(1, Math.min(100, limit)),
+  });
+}
+
 export async function searchConcepts(query: string, limit = 8) {
   const trimmed = query.trim();
   if (!trimmed) return [];
