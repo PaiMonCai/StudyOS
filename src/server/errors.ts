@@ -3,6 +3,7 @@ export type AppErrorCode =
   | "OPENAI_API_KEY_MISSING"
   | "CONCEPT_NOT_FOUND"
   | "SESSION_NOT_FOUND"
+  | "REVIEW_TASK_NOT_FOUND"
   | "NO_ACTIVE_QUESTION"
   | "INTERNAL_ERROR";
 
@@ -39,6 +40,11 @@ const knownErrorMap: Partial<
     code: "SESSION_NOT_FOUND",
     statusCode: 404,
     message: "The requested study session does not exist or is already closed.",
+  },
+  REVIEW_TASK_NOT_FOUND: {
+    code: "REVIEW_TASK_NOT_FOUND",
+    statusCode: 404,
+    message: "The requested due review task does not exist.",
   },
   NO_ACTIVE_QUESTION: {
     code: "NO_ACTIVE_QUESTION",
