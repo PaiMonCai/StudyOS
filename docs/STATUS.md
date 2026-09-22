@@ -1,7 +1,7 @@
 # StudyOS Current Status
 
 > Snapshot date: **2026-09-22**  
-> Verified through CI run: **35710581375** on `main@725073a5f8090e3c6aa4bf4f3f7c554dade2ba96`
+> Verified through CI run: **35711612982** on `main@07e29929257351359a40d6909de30b2c3384dfe1`
 
 本文件只描述“当前真实状态”。未来计划请看 [ROADMAP.md](./ROADMAP.md)。
 
@@ -38,12 +38,12 @@ fresh checkout
 | Study Agent | 🟡 可运行骨架 |
 | Agent Tool contract | ✅ 基础边界建立 |
 | Dashboard | 🟡 Skeleton |
-| Knowledge | 🟡 Skeleton |
+| Knowledge | 🟡 Concept detail + evidence view implemented |
 | Reviews | 🟡 已可进入绑定 Concept 的 StudySession |
-| Study Session context | 🟡 已可恢复结构化 context |
-| Session End / Summary UX | ❌ |
+| Study Session context | ✅ 可恢复结构化 context |
+| Session End / Summary UX | ✅ 基础完成 |
 | Mistake UX | ❌ |
-| Concept Detail | ❌ |
+| Concept Detail | ✅ 基础完成 |
 | Persistent conversation transcript | ❌ |
 | Agent eval suite | ❌ |
 | Authentication | ❌ 有意延期 |
@@ -295,11 +295,16 @@ restore session context
 
 ### P1 — Session lifecycle
 
-尚缺：
+已完成：
 
 - 明确 End Session UI
 - direct finish API
+- deterministic summary
 - summary view
+- finish idempotency
+
+尚缺：
+
 - session history detail
 
 ### P1 — Review UX
@@ -314,14 +319,21 @@ restore session context
 
 ### P1 — Concept UX
 
-尚缺：
+已完成：
 
 - Concept detail
-- prerequisite view
+- prerequisite / dependent view
 - recent attempts
-- mistake history
-- mastery timeline
+- mistake history（嵌入 Concept Detail）
+- mastery history
 - state-change explanation
+- LearningEvent timeline
+- 从 Concept 直接创建 bound StudySession
+
+尚缺：
+
+- 独立 Mistake UX
+- 更完整 mastery timeline 可视化
 
 ### P1 — Mistake UX
 
