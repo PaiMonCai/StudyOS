@@ -13,6 +13,7 @@ import {
 import {
   finishStudySession,
   getDueReviews,
+  getStudySession,
   searchConcepts,
 } from "@/server/services/study-service";
 
@@ -29,6 +30,18 @@ const errorTypeSchema = z.enum([
 ]);
 
 export function createStudyTools(userId: string, sessionId: string) {
+  const getSessionContextTool = tool({
+    name: "get_session_context",
+    description:
+      "Read the current StudySession goal, mode, bound concept, and review task. Use when the learner says start/continue or when the session may be scoped to a specific review.",
+    parameters: z.object({}),
+    async execute() {
+      return toolResult("get_session_context", () =>
+        getStudySession(userId, sessionId),
+      );
+    },
+  });
+
   const searchConceptsTool = tool({
     name: "search_concepts",
     description:
@@ -210,6 +223,7 @@ export function createStudyTools(userId: string, sessionId: string) {
   });
 
   return [
+    getSessionContextTool,
     searchConceptsTool,
     getLearningStateTool,
     getPrerequisitesTool,
