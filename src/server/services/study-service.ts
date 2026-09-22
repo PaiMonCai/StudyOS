@@ -188,9 +188,24 @@ export async function getStudySession(userId: string, sessionId: string) {
     throw new Error("SESSION_NOT_FOUND");
   }
 
+  const [stats, learningState] = await Promise.all([
+    getSessionStats(userId, sessionId),
+    session.conceptId
+      ? prisma.learningState.findUnique({
+          where: {
+            userId_conceptId: {
+              userId,
+              conceptId: session.conceptId,
+            },
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+
   return {
     ...session,
-    stats: await getSessionStats(userId, sessionId),
+    stats,
+    learningState,
   };
 }
 
@@ -340,6 +355,59 @@ export async function getDueReviews(userId: string, limit = 10) {
       { scheduledAt: "asc" },
     ],
     take: limit,
+  });
+}
+
+export type ReviewScope = "DUE" | "UPCOMING" | "COMPLETED" | "ALL";
+
+export async function listReviewTasks(input: {
+  userId: string;
+  scope?: ReviewScope;
+  limit?: number;
+}) {
+  const scope = input.scope ?? "DUE";
+  const now = new Date();
+
+  const where =
+    scope === "DUE"
+      ? {
+          userId: input.userId,
+          status: "PENDING" as const,
+          scheduledAt: { lte: now },
+        }
+      : scope === "UPCOMING"
+        ? {
+            userId: input.userId,
+            status: "PENDING" as const,
+            scheduledAt: { gt: now },
+          }
+        : scope === "COMPLETED"
+          ? {
+              userId: input.userId,
+              status: "COMPLETED" as const,
+            }
+          : {
+              userId: input.userId,
+            };
+
+  return prisma.reviewTask.findMany({
+    where,
+    include: {
+      concept: {
+        include: {
+          topic: {
+            include: {
+              subject: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy:
+      scope === "COMPLETED"
+        ? [{ completedAt: "desc" }, { scheduledAt: "desc" }]
+        : [{ scheduledAt: "asc" }, { priority: "desc" }],
+    take: Math.max(1, Math.min(200, input.limit ?? 100)),
   });
 }
 
