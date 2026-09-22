@@ -57,6 +57,9 @@ jobs:
       - name: Apply migrations
         run: npm run db:deploy
 
+      - name: Seed development curriculum
+        run: npm run db:seed
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -68,3 +71,20 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Production server smoke test
+        run: |
+          npm run start > /tmp/studyos-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /tmp/studyos-health.json; then
+              cat /tmp/studyos-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/studyos-server.log
+          exit 1
