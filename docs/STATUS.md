@@ -42,7 +42,7 @@ fresh checkout
 | Reviews | 🟡 已可进入绑定 Concept 的 StudySession |
 | Study Session context | ✅ 可恢复结构化 context |
 | Session End / Summary UX | ✅ 基础完成 |
-| Mistake UX | ❌ |
+| Mistake UX | 🟡 list/detail + resolve/reopen implemented |
 | Concept Detail | ✅ 基础完成 |
 | Persistent conversation transcript | ❌ |
 | Agent eval suite | ❌ |
@@ -337,12 +337,18 @@ restore session context
 
 ### P1 — Mistake UX
 
-尚缺：
+已完成：
 
 - mistake list
-- detail
+- mistake detail
 - resolve / reopen
+- ownership checks
+- resolve/reopen 不修改历史 Attempt / LearningState 的集成测试
+
+尚缺：
+
 - pattern aggregation
+- diagnosis correction
 
 ### P1 — User correction
 
